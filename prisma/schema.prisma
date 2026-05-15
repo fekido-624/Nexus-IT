@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  uid        String        @id @default(cuid())
+  name       String
+  email      String        @unique
+  password   String
+  department String
+  role       String
+  requests   BorrowRequest[]
+}
+
+model Asset {
+  assetId     String         @id @default(cuid())
+  category    String
+  brand       String
+  model       String
+  assetTag    String         @unique
+  description String
+  status      String
+  availableQty Int
+  addedDate   String
+  lastUpdated String
+  imageUrl    String?
+  units       AssetUnit[]
+  requests    BorrowRequest[]
+}
+
+model AssetUnit {
+  unitId             String  @id @default(cuid())
+  assetId            String
+  assetName          String
+  assetTag           String
+  brand              String
+  model              String
+  category           String
+  condition          String
+  currentStatus      String
+  currentBorrowerId  String?
+  currentBorrowerName String?
+  currentRequestId   String?
+  purchaseDate       String?
+  notes              String
+  addedDate          String
+  borrowHistory      String?
+  asset              Asset   @relation(fields: [assetId], references: [assetId])
+}
+
+model BorrowRequest {
+  requestId        String  @id @default(cuid())
+  userId           String
+  assetId          String
+  userName         String
+  userDept         String
+  assetName        String
+  assignedUnitId   String?
+  assignedAssetTag String?
+  assignedSerialNumber String?
+  quantity         Int
+  purpose          String
+  requestDate      String
+  borrowDate       String
+  returnDate       String
+  status           String
+  approvedBy       String?
+  notes            String
+  user             User    @relation(fields: [userId], references: [uid])
+  asset            Asset   @relation(fields: [assetId], references: [assetId])
+}

@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "it-asset-laptop",
+      "description": "Professional laptop for work",
+      "imageUrl": "https://picsum.photos/seed/laptop/600/400",
+      "imageHint": "laptop computer"
+    },
+    {
+      "id": "it-asset-monitor",
+      "description": "Computer monitor",
+      "imageUrl": "https://picsum.photos/seed/monitor/600/400",
+      "imageHint": "computer monitor"
+    },
+    {
+      "id": "it-asset-projector",
+      "description": "Digital projector",
+      "imageUrl": "https://picsum.photos/seed/projector/600/400",
+      "imageHint": "projector electronics"
+    }
+  ]
+}
