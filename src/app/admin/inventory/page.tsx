@@ -135,7 +135,7 @@ export default function UnitInventory() {
   const handleOpenEdit = (unit: AssetUnit) => {
     setEditingUnit(unit);
     setCondition(unit.condition || 'good');
-    setStatus(unit.currentStatus === 'borrowed' ? 'available' : (unit.currentStatus as any || 'available'));
+    setStatus((unit.currentStatus as string) === 'borrowed' ? 'available' : (unit.currentStatus as any || 'available'));
     setNotes(unit.notes || '');
     setEditAssetId(unit.assetId || '');
     setIsEditDialogOpen(true);

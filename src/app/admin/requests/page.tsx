@@ -90,7 +90,7 @@ export default function BorrowRequests() {
         u.assetId === req.assetId &&
         u.currentStatus === 'available' &&
         u.condition !== 'lost' &&
-        u.condition !== 'broken'
+        u.condition !== 'damaged'
       );
 
       console.log('AVAILABLE UNITS:', filtered);
@@ -198,7 +198,7 @@ export default function BorrowRequests() {
         u.assetId === assetId &&
         u.currentStatus === 'available' &&
         u.condition !== 'lost' &&
-        u.condition !== 'broken'
+        u.condition !== 'damaged'
       );
       setManualUnits(filtered);
       setManualForm({ ...manualForm, assetId, unitId: '' });
