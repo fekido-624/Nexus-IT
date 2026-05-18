@@ -118,6 +118,7 @@ export default function BorrowRequests() {
       toast({ variant: "destructive", title: "Error", description: "Failed to load available units" });
     }
   };
+  
 
   const handleApprove = async () => {
     if (!selectedRequest || !selectedUnitId || !user) return;
