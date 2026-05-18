@@ -1,37 +1,17 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
 import { Storage, BorrowRequest, AssetUnit, Asset, User } from '@/lib/storage';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Table, 
-  TableHeader, 
-  TableBody, 
-  TableHead, 
-  TableRow, 
-  TableCell 
-} from '@/components/ui/table';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter
-} from '@/components/ui/dialog';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { ClipboardList, CheckCircle2, XCircle, RefreshCw, Eye, Search, X, Clock, UserPlus, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -53,23 +33,10 @@ export default function BorrowRequests() {
   const [selectedUnitId, setSelectedUnitId] = useState('');
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isManualAssignOpen, setIsManualAssignOpen] = useState(false);
-  
-  // Data for manual assignment
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
   const [manualUnits, setManualUnits] = useState<AssetUnit[]>([]);
-
-  // Manual Form State
-  const [manualForm, setManualForm] = useState({
-    userId: '',
-    assetId: '',
-    unitId: '',
-    purpose: '',
-    borrowDate: '',
-    returnDate: ''
-  });
-
-  // Filter States
+  const [manualForm, setManualForm] = useState({ userId: '', assetId: '', unitId: '', purpose: '', borrowDate: '', returnDate: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
@@ -80,14 +47,14 @@ export default function BorrowRequests() {
   useEffect(() => {
     async function initializeData() {
       try {
-        const [users, assets, requests] = await Promise.all([
+        const [users, assets, reqs] = await Promise.all([
           Storage.getUsers(),
-          Storage.getAssets().then(a => a.filter(x => x.status === 'available')),
+          Storage.getAssets(),
           Storage.getRequests()
         ]);
         setAllUsers(users);
         setAllAssets(assets);
-        setRequests(requests.reverse());
+        setRequests(reqs.reverse());
       } catch (error) {
         console.error('Failed to initialize data:', error);
         toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
@@ -98,8 +65,8 @@ export default function BorrowRequests() {
 
   const loadData = async () => {
     try {
-      const requests = await Storage.getRequests();
-      setRequests(requests.reverse());
+      const reqs = await Storage.getRequests();
+      setRequests(reqs.reverse());
     } catch (error) {
       console.error('Failed to load data:', error);
       toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
@@ -109,8 +76,26 @@ export default function BorrowRequests() {
   const handleOpenApprove = async (req: BorrowRequest) => {
     try {
       const units = await Storage.getUnits();
-      const availableUnits = units.filter(u => u.assetId === req.assetId && u.currentStatus === 'available' && u.condition === 'good');
-      setAvailableUnits(availableUnits);
+
+      console.log('ALL UNITS DETAIL:', JSON.stringify(units.map(u => ({
+        unitId: u.unitId,
+        assetId: u.assetId,
+        assetTag: u.assetTag,
+        status: u.currentStatus,
+        condition: u.condition
+      })), null, 2));
+      console.log('REQUEST assetId:', req.assetId);
+
+      const filtered = units.filter(u =>
+        u.assetId === req.assetId &&
+        u.currentStatus === 'available' &&
+        u.condition !== 'lost' &&
+        u.condition !== 'broken'
+      );
+
+      console.log('AVAILABLE UNITS:', filtered);
+
+      setAvailableUnits(filtered);
       setSelectedRequest(req);
       setIsApproveDialogOpen(true);
     } catch (error) {
@@ -118,41 +103,36 @@ export default function BorrowRequests() {
       toast({ variant: "destructive", title: "Error", description: "Failed to load available units" });
     }
   };
-  
 
   const handleApprove = async () => {
     if (!selectedRequest || !selectedUnitId || !user) return;
-
     try {
       const availableUnit = availableUnits.find(u => u.unitId === selectedUnitId);
       if (!availableUnit) return;
 
-      const [allRequests, allUnits, allAssets] = await Promise.all([
+      const [allRequests, allUnits, allAssetsList] = await Promise.all([
         Storage.getRequests(),
         Storage.getUnits(),
         Storage.getAssets()
       ]);
 
-      const updatedRequests = allRequests.map(r => 
-        r.requestId === selectedRequest.requestId 
-          ? { ...r, status: 'approved' as const, assignedUnitId: availableUnit.unitId, assignedAssetTag: availableUnit.assetTag, assignedSerialNumber: availableUnit.assetTag, approvedBy: user.name } 
+      await Storage.saveRequests(allRequests.map(r =>
+        r.requestId === selectedRequest.requestId
+          ? { ...r, status: 'approved' as const, assignedUnitId: availableUnit.unitId, assignedAssetTag: availableUnit.assetTag, assignedSerialNumber: availableUnit.assetTag, approvedBy: user.name }
           : r
-      );
-      await Storage.saveRequests(updatedRequests);
+      ));
 
-      const updatedUnits = allUnits.map(u => 
-        u.unitId === availableUnit.unitId 
-          ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: selectedRequest.userId, currentBorrowerName: selectedRequest.userName, currentRequestId: selectedRequest.requestId } 
+      await Storage.saveUnits(allUnits.map(u =>
+        u.unitId === availableUnit.unitId
+          ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: selectedRequest.userId, currentBorrowerName: selectedRequest.userName, currentRequestId: selectedRequest.requestId }
           : u
-      );
-      await Storage.saveUnits(updatedUnits);
+      ));
 
-      const updatedAssets = allAssets.map(a => 
-        a.assetId === selectedRequest.assetId 
-          ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1), status: 'borrowed' as const } 
+      await Storage.saveAssets(allAssetsList.map(a =>
+        a.assetId === selectedRequest.assetId
+          ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1), status: 'borrowed' as const }
           : a
-      );
-      await Storage.saveAssets(updatedAssets);
+      ));
 
       toast({ title: "Request Approved", description: `Asset assigned to ${selectedRequest.userName}.` });
       setIsApproveDialogOpen(false);
@@ -168,10 +148,9 @@ export default function BorrowRequests() {
   const handleReject = async (req: BorrowRequest) => {
     try {
       const allRequests = await Storage.getRequests();
-      const updated = allRequests.map(r => 
+      await Storage.saveRequests(allRequests.map(r =>
         r.requestId === req.requestId ? { ...r, status: 'rejected' as const } : r
-      );
-      await Storage.saveRequests(updated);
+      ));
       toast({ variant: "destructive", title: "Request Rejected", description: "The borrow request was rejected." });
       await loadData();
     } catch (error) {
@@ -182,32 +161,29 @@ export default function BorrowRequests() {
 
   const handleApproveReturn = async (req: BorrowRequest) => {
     try {
-      const [allRequests, allUnits, allAssets] = await Promise.all([
+      const [allRequests, allUnits, allAssetsList] = await Promise.all([
         Storage.getRequests(),
         Storage.getUnits(),
         Storage.getAssets()
       ]);
 
-      const updatedRequests = allRequests.map(r => 
+      await Storage.saveRequests(allRequests.map(r =>
         r.requestId === req.requestId ? { ...r, status: 'returned' as const } : r
-      );
-      await Storage.saveRequests(updatedRequests);
+      ));
 
-      const updatedUnits = allUnits.map(u => 
-        u.unitId === req.assignedUnitId 
-          ? { ...u, currentStatus: 'available' as const, currentBorrowerId: '', currentBorrowerName: '', currentRequestId: '' } 
+      await Storage.saveUnits(allUnits.map(u =>
+        u.unitId === req.assignedUnitId
+          ? { ...u, currentStatus: 'available' as const, currentBorrowerId: '', currentBorrowerName: '', currentRequestId: '' }
           : u
-      );
-      await Storage.saveUnits(updatedUnits);
+      ));
 
-      const updatedAssets = allAssets.map(a => 
-        a.assetId === req.assetId 
-          ? { ...a, availableQty: (a.availableQty || 0) + 1, status: 'available' as const } 
+      await Storage.saveAssets(allAssetsList.map(a =>
+        a.assetId === req.assetId
+          ? { ...a, availableQty: (a.availableQty || 0) + 1, status: 'available' as const }
           : a
-      );
-      await Storage.saveAssets(updatedAssets);
+      ));
 
-      toast({ title: "Return Approved", description: `The unit from ${req.userName} is now available in inventory.` });
+      toast({ title: "Return Approved", description: `The unit from ${req.userName} is now available.` });
       await loadData();
     } catch (error) {
       console.error('Failed to approve return:', error);
@@ -215,12 +191,16 @@ export default function BorrowRequests() {
     }
   };
 
-  // Manual Assignment Logic
   const handleAssetSelect = async (assetId: string) => {
     try {
       const units = await Storage.getUnits();
-      const availableUnits = units.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition === 'good');
-      setManualUnits(availableUnits);
+      const filtered = units.filter(u =>
+        u.assetId === assetId &&
+        u.currentStatus === 'available' &&
+        u.condition !== 'lost' &&
+        u.condition !== 'broken'
+      );
+      setManualUnits(filtered);
       setManualForm({ ...manualForm, assetId, unitId: '' });
     } catch (error) {
       console.error('Failed to load units:', error);
@@ -234,12 +214,10 @@ export default function BorrowRequests() {
       toast({ variant: "destructive", title: "Incomplete Form", description: "Please fill in all details." });
       return;
     }
-
     try {
       const targetUser = allUsers.find(u => u.uid === userId);
       const targetAsset = allAssets.find(a => a.assetId === assetId);
       const targetUnit = manualUnits.find(u => u.unitId === unitId);
-
       if (!targetUser || !targetAsset || !targetUnit) return;
 
       const requestId = `REQ-MAN-${Date.now()}`;
@@ -263,27 +241,22 @@ export default function BorrowRequests() {
         notes: 'Manual assignment by admin'
       };
 
-      // 1. Save Request
       const currentRequests = await Storage.getRequests();
       await Storage.saveRequests([...currentRequests, newRequest]);
 
-      // 2. Update Unit
       const allUnits = await Storage.getUnits();
-      const updatedUnits = allUnits.map(u => 
-        u.unitId === targetUnit.unitId 
-          ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: targetUser.uid, currentBorrowerName: targetUser.name, currentRequestId: requestId } 
+      await Storage.saveUnits(allUnits.map(u =>
+        u.unitId === targetUnit.unitId
+          ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: targetUser.uid, currentBorrowerName: targetUser.name, currentRequestId: requestId }
           : u
-      );
-      await Storage.saveUnits(updatedUnits);
+      ));
 
-      // 3. Update Asset
       const allAssetsList = await Storage.getAssets();
-      const updatedAssets = allAssetsList.map(a => 
-        a.assetId === targetAsset.assetId 
-          ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1), status: 'borrowed' as const } 
+      await Storage.saveAssets(allAssetsList.map(a =>
+        a.assetId === targetAsset.assetId
+          ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1), status: 'borrowed' as const }
           : a
-      );
-      await Storage.saveAssets(updatedAssets);
+      ));
 
       toast({ title: "Asset Assigned", description: `Successfully assigned ${targetAsset.brand} to ${targetUser.name}.` });
       setIsManualAssignOpen(false);
@@ -304,18 +277,13 @@ export default function BorrowRequests() {
   const filteredRequests = requests.filter(req => {
     const todayStr = new Date().toISOString().split('T')[0];
     const isOverdue = req.status === 'approved' && req.returnDate < todayStr;
-    
-    const matchesSearch = (req.userName || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (req.assetName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (req.requestId || "").toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch =
+      (req.userName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (req.assetName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (req.requestId || "").toLowerCase().includes(searchTerm.toLowerCase());
     let matchesStatus = true;
-    if (statusFilter === 'overdue') {
-      matchesStatus = isOverdue;
-    } else if (statusFilter !== 'all') {
-      matchesStatus = req.status === statusFilter;
-    }
-
+    if (statusFilter === 'overdue') matchesStatus = isOverdue;
+    else if (statusFilter !== 'all') matchesStatus = req.status === statusFilter;
     const matchesDept = deptFilter === 'all' || req.userDept === deptFilter;
     return matchesSearch && matchesStatus && matchesDept;
   });
@@ -323,9 +291,7 @@ export default function BorrowRequests() {
   const getStatusBadge = (status: string, returnDate?: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const isOverdue = status === 'approved' && returnDate && returnDate < todayStr;
-
     if (isOverdue) return <Badge variant="destructive" className="animate-pulse">Overdue</Badge>;
-
     switch (status) {
       case 'approved': return <Badge className="bg-green-500">Approved</Badge>;
       case 'pending': return <Badge className="bg-yellow-500">Pending</Badge>;
@@ -348,14 +314,13 @@ export default function BorrowRequests() {
         </Button>
       </div>
 
-      {/* Filter Section */}
       <Card className="shadow-sm border-none bg-muted/30">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search name, asset or ID..." 
+              <Input
+                placeholder="Search name, asset or ID..."
                 className="pl-9 bg-background"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -528,7 +493,6 @@ export default function BorrowRequests() {
                 </SelectContent>
               </Select>
             </div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Asset Type</Label>
@@ -545,8 +509,8 @@ export default function BorrowRequests() {
               </div>
               <div className="grid gap-2">
                 <Label>Available Unit</Label>
-                <Select 
-                  value={manualForm.unitId} 
+                <Select
+                  value={manualForm.unitId}
                   onValueChange={(val) => setManualForm({...manualForm, unitId: val})}
                   disabled={!manualForm.assetId}
                 >
@@ -565,7 +529,6 @@ export default function BorrowRequests() {
                 </Select>
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Borrow Date</Label>
@@ -576,12 +539,11 @@ export default function BorrowRequests() {
                 <Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} />
               </div>
             </div>
-
             <div className="grid gap-2">
               <Label>Purpose / Notes</Label>
-              <Textarea 
-                placeholder="Manual assignment details..." 
-                value={manualForm.purpose} 
+              <Textarea
+                placeholder="Manual assignment details..."
+                value={manualForm.purpose}
                 onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})}
               />
             </div>

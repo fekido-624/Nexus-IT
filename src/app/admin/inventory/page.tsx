@@ -44,6 +44,7 @@ const CATEGORIES = ['Laptop', 'Monitor', 'Keyboard', 'Mouse', 'Projector', 'Prin
 
 export default function UnitInventory() {
   const [units, setUnits] = useState<AssetUnit[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
@@ -57,75 +58,90 @@ export default function UnitInventory() {
   const [condition, setCondition] = useState<'good' | 'damaged' | 'lost'>('good');
   const [status, setStatus] = useState<'available' | 'maintenance'>('available');
   const [notes, setNotes] = useState('');
+  const [editAssetId, setEditAssetId] = useState('');
 
   useEffect(() => {
-    async function loadUnits() {
-      try {
-        const loadedUnits = await Storage.getUnits();
-        setUnits(loadedUnits);
-      } catch (error) {
-        console.error('Failed to load units:', error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to load units" });
-      }
+  async function loadData() {
+    try {
+      const [loadedUnits, loadedAssets] = await Promise.all([
+        Storage.getUnits(),
+        Storage.getAssets()
+      ]);
+      setUnits(loadedUnits);
+      setAssets(loadedAssets);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
     }
-    loadUnits();
-  }, [toast]);
+  }
+  loadData();
+}, [toast]);
 
   const handleUpdateUnit = async () => {
-    if (!editingUnit) return;
+  if (!editingUnit) return;
 
-    try {
-      const newStatus = status;
+  try {
+    const newStatus = status;
 
-      // 1. Update Unit
-      const updatedUnits = units.map(u => {
-        if (u.unitId === editingUnit.unitId) {
-          return {
-            ...u,
-            condition,
-            currentStatus: newStatus as any,
-            notes
-          };
-        }
-        return u;
-      });
+    const updatedUnits = units.map(u => {
+      if (u.unitId === editingUnit.unitId) {
+        return {
+          ...u,
+          condition,
+          currentStatus: newStatus as any,
+          notes,
+          // Clear borrower info kalau status tukar ke available atau maintenance
+          ...(newStatus !== 'borrowed' && {
+            currentBorrowerId: '',
+            currentBorrowerName: '',
+            currentRequestId: ''
+          })
+        };
+      }
+      return u;
+    });
 
-      await Storage.saveUnits(updatedUnits);
-      setUnits(updatedUnits);
+    await Storage.saveUnits(updatedUnits);
+    setUnits(updatedUnits);
 
-      // 2. Sync with Asset status
-      const allAssets = await Storage.getAssets();
-      const updatedAssets = allAssets.map(a => {
-        if (a.assetId === editingUnit.assetId) {
-          return { ...a, status: (newStatus === 'available' ? 'available' : 'maintenance') as any };
-        }
-        return a;
-      });
-      await Storage.saveAssets(updatedAssets);
+    const allAssets = await Storage.getAssets();
+    const updatedAssets = allAssets.map(a => {
+      if (a.assetId === editingUnit.assetId) {
+        return { ...a, status: (newStatus === 'available' ? 'available' : 'maintenance') as any };
+      }
+      return a;
+    });
+    await Storage.saveAssets(updatedAssets);
 
-      toast({ title: "Unit Updated", description: `Record for ${editingUnit.assetTag} has been saved.` });
-      resetForm();
-    } catch (error) {
-      console.error('Failed to update unit:', error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to update unit" });
-    }
-  };
+    toast({ title: "Unit Updated", description: `Record for ${editingUnit.assetTag} has been saved.` });
+    resetForm();
+  } catch (error) {
+    console.error('Failed to update unit:', error);
+    toast({ variant: "destructive", title: "Error", description: "Failed to update unit" });
+  }
+};
 
-  const resetForm = () => {
+
+    const resetForm = () => {
     setCondition('good');
     setStatus('available');
     setNotes('');
+    setEditAssetId('');  // ← tambah ni
     setEditingUnit(null);
     setIsEditDialogOpen(false);
   };
+
 
   const handleOpenEdit = (unit: AssetUnit) => {
     setEditingUnit(unit);
     setCondition(unit.condition || 'good');
     setStatus(unit.currentStatus === 'borrowed' ? 'available' : (unit.currentStatus as any || 'available'));
     setNotes(unit.notes || '');
+    setEditAssetId(unit.assetId || '');
     setIsEditDialogOpen(true);
   };
+
+ 
 
   const filteredUnits = units.filter(u => {
     const term = searchTerm.toLowerCase();
@@ -269,6 +285,21 @@ export default function UnitInventory() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="bg-muted/50 p-3 rounded-lg text-sm mb-2">
+              <div className="grid gap-2">
+              <Label>Parent Asset</Label>
+              <Select value={editAssetId} onValueChange={setEditAssetId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select parent asset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {assets.map(a => (
+                    <SelectItem key={a.assetId} value={a.assetId}>
+                      {a.brand} {a.model} ({a.assetId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
               <p><strong>Asset:</strong> {editingUnit?.assetName}</p>
               <p><strong>Tag:</strong> {editingUnit?.assetTag}</p>
             </div>
@@ -292,7 +323,7 @@ export default function UnitInventory() {
                 <Select 
                   value={status} 
                   onValueChange={(val: any) => setStatus(val)}
-                  disabled={editingUnit?.currentStatus === 'borrowed'}
+                  disabled={false}
                 >
                   <SelectTrigger>
                     <SelectValue />

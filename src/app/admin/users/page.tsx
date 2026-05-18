@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { 
   Table, 
   TableHeader, 
@@ -34,6 +35,9 @@ import { Users, Plus, Pencil, Trash2, Search, ShieldCheck, User as UserIcon } fr
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
+
+
+
 const DEPARTMENTS = ['IT', 'Kewangan', 'Pentadbiran', 'HR', 'Operasi', 'Pemasaran'];
 
 export default function UserManagement() {
@@ -42,6 +46,9 @@ export default function UserManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const { toast } = useToast();
+  // Tambah dalam component, lepas state lain
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState('');
 
   // Form State initialized to avoid uncontrolled input warnings
   const [name, setName] = useState('');
@@ -129,15 +136,28 @@ export default function UserManagement() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (uid: string) => {
+
+  const handleDelete = async () => {
     try {
-      const updated = users.filter(u => u.uid !== uid);
+      const requests = await Storage.getRequests();
+      const hasActive = requests.some(r =>
+        r.userId === deleteTargetId &&
+        (r.status === 'approved' || r.status === 'pending' || r.status === 'returning')
+      );
+      if (hasActive) {
+        toast({ variant: "destructive", title: "Cannot Delete", description: "User still has active or pending borrow requests." });
+        return;
+      }
+      const currentUsers = await Storage.getUsers();
+      const updated = currentUsers.filter(u => u.uid !== deleteTargetId);
       await Storage.saveUsers(updated);
       setUsers(updated);
       toast({ variant: "destructive", title: "User Deleted", description: "The user account has been removed." });
     } catch (error) {
-      console.error('Failed to delete user:', error);
       toast({ variant: "destructive", title: "Error", description: "Failed to delete user" });
+    } finally {
+      setConfirmOpen(false);
+      setDeleteTargetId('');
     }
   };
 
@@ -275,7 +295,7 @@ export default function UserManagement() {
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(user)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(user.uid)}>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { setDeleteTargetId(user.uid); setConfirmOpen(true); }}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -287,6 +307,13 @@ export default function UserManagement() {
           </Table>
         </CardContent>
       </Card>
+            <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="Delete User?"
+            description="This will permanently remove the user account. This action cannot be undone."
+            onConfirm={handleDelete}
+      />
     </div>
   );
 }
