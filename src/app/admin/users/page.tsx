@@ -56,6 +56,7 @@ export default function UserManagement() {
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
+  const [jawatan, setJawatan] = useState('');
 
   useEffect(() => {
     async function loadUsers() {
@@ -84,6 +85,7 @@ export default function UserManagement() {
             name,
             email,
             department,
+            jawatan,
             role
           };
           if (password) {
@@ -101,6 +103,7 @@ export default function UserManagement() {
           email,
           password: password || 'user123', // default password
           department,
+          jawatan,  
           role
         };
         const updated = [...currentUsers, newUser];
@@ -124,6 +127,7 @@ export default function UserManagement() {
     setRole('user');
     setEditingUser(null);
     setIsDialogOpen(false);
+    setJawatan('');
   };
 
   const handleEdit = (user: User) => {
@@ -133,6 +137,7 @@ export default function UserManagement() {
     setPassword(''); // Don't show existing password
     setDepartment(user.department || '');
     setRole(user.role || 'user');
+    setJawatan(user.jawatan || '');
     setIsDialogOpen(true);
   };
 
@@ -222,6 +227,14 @@ export default function UserManagement() {
                       <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Jawatan</Label>
+                  <Input 
+                    value={jawatan} 
+                    onChange={(e) => setJawatan(e.target.value)} 
+                    placeholder="Pegawai IT, Pembantu Tadbir, dll" 
+                  />
                 </div>
               </div>
             </div>

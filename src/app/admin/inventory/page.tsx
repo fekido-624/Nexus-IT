@@ -91,7 +91,7 @@ export default function UnitInventory() {
           currentStatus: newStatus as any,
           notes,
           // Clear borrower info kalau status tukar ke available atau maintenance
-          ...(newStatus !== 'borrowed' && {
+          ...(newStatus !== 'available' && {
             currentBorrowerId: '',
             currentBorrowerName: '',
             currentRequestId: ''
