@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { printBorangKEWPA9 } from '@/lib/print-borang';
+import { Printer } from 'lucide-react';
 
 const DEPARTMENTS = ['IT', 'Kewangan', 'Pentadbiran', 'HR', 'Operasi', 'Pemasaran'];
 const STATUSES = [
@@ -426,7 +428,19 @@ export default function BorrowRequests() {
                           <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 h-8 text-[10px] md:text-xs" onClick={() => handleApproveReturn(req)}>
                             Confirm Return
                           </Button>
+                        )} 
+                        {/* Tambah ni */}
+                        {(req.status === 'approved' || req.status === 'returned') && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-primary border-primary/30 h-8 text-[10px] md:text-xs gap-1"
+                            onClick={() => printBorangKEWPA9(req, user!, allUsers)}
+                          >
+                            <Printer className="h-3 w-3" /> Print
+                          </Button>
                         )}
+
                       </div>
                     </TableCell>
                   </TableRow>

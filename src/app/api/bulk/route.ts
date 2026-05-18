@@ -21,8 +21,23 @@ export async function POST(request: Request) {
     await prisma.user.deleteMany({ where: { uid: { notIn: incomingIds } } });
     
     await Promise.all(data.map(async (user: any) => {
-      const userCreate = { uid: user.uid, name: user.name, email: user.email, department: user.department, role: user.role, password: user.password || 'user123' };
-      const userUpdate: any = { name: user.name, email: user.email, department: user.department, role: user.role };
+      const userCreate = { 
+        uid: user.uid, 
+        name: user.name, 
+        email: user.email, 
+        department: user.department, 
+        role: user.role, 
+        password: user.password || 'user123',
+        jawatan: user.jawatan || ''  // ← tambah ni
+      };
+
+      const userUpdate: any = { 
+        name: user.name, 
+        email: user.email, 
+        department: user.department, 
+        role: user.role,
+        jawatan: user.jawatan || ''  // ← tambah ni
+      };
       if (user.password) userUpdate.password = user.password;
       await prisma.user.upsert({ where: { uid: user.uid }, update: userUpdate, create: userCreate });
     }));

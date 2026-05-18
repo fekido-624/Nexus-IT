@@ -10,6 +10,8 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { useAuth } from '@/hooks/use-auth';
 import { ClipboardList, AlertCircle, CheckCircle2, Clock, XCircle, RefreshCw, CalendarClock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { printBorangKEWPA9 } from '@/lib/print-borang';
+import { Printer } from 'lucide-react';
 
 export default function MyRequests() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
@@ -123,6 +125,16 @@ export default function MyRequests() {
                       )}
                       {req.status === 'returning' && (
                         <span className="text-xs text-muted-foreground italic">Awaiting Admin Approval</span>
+                      )}
+                     
+                      {req.status === 'returning' && (
+                        <span className="text-xs text-muted-foreground italic">Awaiting Admin Approval</span>
+                      )}
+                      {/* Print button letak sini */}
+                      {(req.status === 'approved' || req.status === 'returned' || req.status === 'pending') && (
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => printBorangKEWPA9(req, user!, [user!])}>
+                          <Printer className="h-3 w-3" /> Print
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>

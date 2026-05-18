@@ -6,6 +6,7 @@ export interface User {
   email: string;
   password?: string;
   department: string;
+  jawatan?: string;
   role: 'admin' | 'user';
 }
 

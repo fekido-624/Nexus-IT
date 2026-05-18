@@ -11,7 +11,9 @@ const DEFAULT_USERS = [
     email: 'admin@it.gov.my',
     password: 'admin123',
     department: 'IT',
-    role: 'admin'
+    role: 'admin',
+    jawatan: 'Pegawai Teknologi Maklumat'  // ← tambah ni
+    
   },
   {
     uid: 'u002',
@@ -19,7 +21,8 @@ const DEFAULT_USERS = [
     email: 'siti@dept.gov.my',
     password: 'user123',
     department: 'Kewangan',
-    role: 'user'
+    role: 'user',    
+    jawatan: 'Pembantu Tadbir'  // ← tambah ni
   }
 ];
 
