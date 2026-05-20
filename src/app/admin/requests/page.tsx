@@ -62,7 +62,7 @@ export default function BorrowRequests() {
   // Manual assign dialog (DIKEMAS KINI)
   const [isManualAssignOpen, setIsManualAssignOpen] = useState(false);
   const [manualUnits, setManualUnits] = useState<AssetUnit[]>([]);
-  const [manualForm, setManualForm] = useState({ userId: '', purpose: '', borrowDate: '', returnDate: '' });
+  const [manualForm, setManualForm] = useState({ userId: '', purpose: '', location: '', borrowDate: '', returnDate: '' });
   const [manualItems, setManualItems] = useState<ManualItem[]>([]); // Menyimpan multiple assets
   const [tempAssetId, setTempAssetId] = useState('');
   const [tempUnitId, setTempUnitId] = useState('');
@@ -292,10 +292,12 @@ export default function BorrowRequests() {
     setManualItems(manualItems.filter(item => item.unitId !== unitId));
   };
 
-  const handleManualAssignSubmit = async () => {
-    const { userId, purpose, borrowDate, returnDate } = manualForm;
-    if (!userId || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
-      toast({ variant: "destructive", title: "Incomplete Form", description: "Please fill in all details and select at least one asset." }); 
+const handleManualAssignSubmit = async () => {
+    // 1. Tarik location dari form
+    const { userId, purpose, location, borrowDate, returnDate } = manualForm;
+    
+    if (!userId || !location || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
+      toast({ variant: "destructive", title: "Incomplete Form", description: "Sila isi semua maklumat termasuk tempat digunakan." }); 
       return;
     }
     
@@ -309,10 +311,8 @@ export default function BorrowRequests() {
       let allUnits = await Storage.getUnits();
       let allAssetsList = await Storage.getAssets();
 
-      // Loop semua items yang dipilih dalam cart admin
       for (let i = 0; i < manualItems.length; i++) {
         const selected = manualItems[i];
-        
         reqItems.push({
           itemId: `ITEM-${Date.now()}-${i}`,
           requestId,
@@ -325,13 +325,14 @@ export default function BorrowRequests() {
           notes: ''
         });
 
-        // Kemas kini database unit & asset kuantiti
         allUnits = allUnits.map(u => u.unitId === selected.unitId ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: targetUser.uid, currentBorrowerName: targetUser.name, currentRequestId: requestId } : u);
         allAssetsList = allAssetsList.map(a => a.assetId === selected.assetId ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1) } : a);
       }
 
-      const newRequest: BorrowRequest = {
-        requestId, userId: targetUser.uid, userName: targetUser.name, userDept: targetUser.department, purpose,
+      const newRequest: any = {
+        requestId, userId: targetUser.uid, userName: targetUser.name, userDept: targetUser.department, 
+        purpose, 
+        location: location, // <--- 2. Masukkan location di sini
         requestDate: new Date().toISOString().split('T')[0], borrowDate, returnDate, status: 'approved', approvedBy: user.name, notes: 'Manual assignment by admin',
         items: reqItems
       };
@@ -344,7 +345,7 @@ export default function BorrowRequests() {
       toast({ title: "Assets Assigned", description: `Successfully assigned ${manualItems.length} unit(s) to ${targetUser.name}.` });
       
       setIsManualAssignOpen(false); 
-      setManualForm({ userId: '', purpose: '', borrowDate: '', returnDate: '' });
+      setManualForm({ userId: '', purpose: '', location: '', borrowDate: '', returnDate: '' });
       setManualItems([]);
       await loadData();
     } catch (error) {
@@ -642,6 +643,11 @@ export default function BorrowRequests() {
               <div className="grid gap-2"><Label>Return Date</Label><Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} /></div>
             </div>
             <div className="grid gap-2"><Label>Purpose / Notes</Label><Textarea placeholder="Manual assignment details..." value={manualForm.purpose} onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})} /></div>
+            {/* TAMBAH INPUT INI */}
+            <div className="grid gap-2">
+              <Label>Tempat Digunakan</Label>
+              <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={manualForm.location} onChange={(e) => setManualForm({...manualForm, location: e.target.value})} />
+            </div>
 
             {/* Bahagian Cart (Tambah Item Berbilang) */}
             <div className="border rounded-xl p-4 bg-muted/20 space-y-4">
