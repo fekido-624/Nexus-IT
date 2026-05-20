@@ -1,36 +1,34 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
-import { Storage, Asset } from '@/lib/storage';
+import { Storage, Asset, BorrowRequest, BorrowRequestItem } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Laptop, Monitor, MousePointer, Projector, Printer, Network, Power, Box } from 'lucide-react';
+import { Search, Laptop, Monitor, MousePointer, Projector, Printer, Network, Power, Box, ShoppingCart, X, Plus, Check, Minus } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+
+interface CartItem {
+  asset: Asset;
+  quantity: number;
+}
 
 export default function AssetCatalogue() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Form state
   const [purpose, setPurpose] = useState('');
+  // STATE BARU: Tempat Digunakan
+  const [location, setLocation] = useState(''); 
   const [borrowDate, setBorrowDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
 
@@ -40,14 +38,12 @@ export default function AssetCatalogue() {
       const data = await Storage.getAssets();
       setAssets(data);
     }
-
     loadAssets();
   }, []);
 
   const filteredAssets = assets.filter(asset =>
     asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
     asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.assetTag.toLowerCase().includes(searchTerm.toLowerCase()) ||
     asset.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -65,45 +61,100 @@ export default function AssetCatalogue() {
     }
   };
 
-  const handleOpenRequest = (asset: Asset) => {
-    setSelectedAsset(asset);
-    setRequestModalOpen(true);
+  const getCartItem = (assetId: string) => cart.find(c => c.asset.assetId === assetId);
+  const isInCart = (assetId: string) => cart.some(c => c.asset.assetId === assetId);
+  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
+
+  const addToCart = (asset: Asset) => {
+    const existing = getCartItem(asset.assetId);
+    if (existing) {
+      if (existing.quantity >= asset.availableQty) {
+        toast({ variant: "destructive", title: "Max quantity reached", description: `Only ${asset.availableQty} unit(s) available.` });
+        return;
+      }
+      setCart(cart.map(c => c.asset.assetId === asset.assetId ? { ...c, quantity: c.quantity + 1 } : c));
+    } else {
+      setCart([...cart, { asset, quantity: 1 }]);
+    }
+  };
+
+  const removeFromCart = (assetId: string) => {
+    setCart(cart.filter(c => c.asset.assetId !== assetId));
+  };
+
+  const updateQuantity = (assetId: string, qty: number) => {
+    if (qty <= 0) {
+      removeFromCart(assetId);
+      return;
+    }
+    const asset = assets.find(a => a.assetId === assetId);
+    if (asset && qty > asset.availableQty) {
+      toast({ variant: "destructive", title: "Max quantity reached", description: `Only ${asset.availableQty} unit(s) available.` });
+      return;
+    }
+    setCart(cart.map(c => c.asset.assetId === assetId ? { ...c, quantity: qty } : c));
   };
 
   const handleSubmitRequest = async () => {
-    if (!user || !selectedAsset) return;
+    if (!user || cart.length === 0 || !purpose || !location || !borrowDate || !returnDate) return;
 
-    const requests = await Storage.getRequests();
-    const newRequest = {
-      requestId: `REQ-${Date.now()}`,
-      userId: user.uid,
-      userName: user.name,
-      userDept: user.department,
-      assetId: selectedAsset.assetId,
-      assetName: `${selectedAsset.brand} ${selectedAsset.model}`,
-      assignedUnitId: '',
-      assignedAssetTag: '',
-      quantity: 1,
-      purpose,
-      requestDate: new Date().toISOString().split('T')[0],
-      borrowDate,
-      returnDate,
-      status: 'pending' as const,
-      approvedBy: '',
-      notes: ''
-    };
+    try {
+      // 1. Tambah fallback `|| []` kalau database requests kosong
+      const requests = (await Storage.getRequests()) || []; 
+      const requestId = `REQ-${Date.now()}`;
 
-    await Storage.saveRequests([...requests, newRequest]);
+      const items: any[] = [];
+      cart.forEach((cartItem, index) => {
+        for (let q = 0; q < cartItem.quantity; q++) {
+          items.push({
+            // 2. Tambah index supaya ID betul-betul unik jika loop terlalu laju
+            itemId: `ITEM-${Date.now()}-${cartItem.asset.assetId}-${index}-${q}`,
+            requestId,
+            assetId: cartItem.asset.assetId,
+            assetName: `${cartItem.asset.brand} ${cartItem.asset.model}`,
+            assignedUnitId: '',
+            assignedAssetTag: '',
+            assignedSerialNumber: '',
+            status: 'pending',
+            notes: ''
+          });
+        }
+      });
 
-    toast({
-      title: 'Request Submitted',
-      description: `Request for ${selectedAsset.brand} ${selectedAsset.model} sent.`,
-    });
+      const newRequest: any = {
+        requestId,
+        userId: user.uid,
+        userName: user.name,
+        userDept: user.department || '', // 3. Fallback kalau department kosong
+        purpose,
+        location: location, 
+        requestDate: new Date().toISOString().split('T')[0],
+        borrowDate,
+        returnDate,
+        status: 'pending',
+        approvedBy: '',
+        notes: '',
+        items
+      };
 
-    setRequestModalOpen(false);
-    setPurpose('');
-    setBorrowDate('');
-    setReturnDate('');
+      await Storage.saveRequests([...requests, newRequest]);
+
+      toast({
+        title: 'Request Submitted',
+        description: `Request for ${items.length} unit(s) has been submitted.`,
+      });
+
+      setCart([]);
+      setCartOpen(false);
+      setPurpose('');
+      setLocation('');
+      setBorrowDate('');
+      setReturnDate('');
+    } catch (error) {
+      // 4. PRINT ERROR SEBENAR KE CONSOLE UNTUK DEBUG
+      console.error("DEBUG ERROR SUBMIT:", error); 
+      toast({ variant: "destructive", title: "Error", description: "Failed to submit request. Check console!" });
+    }
   };
 
   return (
@@ -113,53 +164,77 @@ export default function AssetCatalogue() {
           <h1 className="text-3xl font-bold tracking-tight text-primary">Asset Catalogue</h1>
           <p className="text-muted-foreground">Browse and request available IT equipment.</p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search assets..."
-            className="pl-9"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-3">
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search assets..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+          <Button variant="outline" className="relative gap-2" onClick={() => setCartOpen(true)} disabled={cart.length === 0}>
+            <ShoppingCart className="h-4 w-4" />
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                {totalItems}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredAssets.map((asset) => (
-          <Card key={asset.assetId} className="group hover:shadow-lg transition-all border-none shadow-md overflow-hidden flex flex-col">
-            <div className="h-40 bg-muted flex items-center justify-center relative overflow-hidden">
-              {asset.imageUrl ? (
-                <img src={asset.imageUrl} alt={asset.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              ) : (
-                getCategoryIcon(asset.category)
-              )}
-              <div className="absolute top-2 right-2">
-                <Badge variant={asset.status === 'available' ? 'default' : 'destructive'}>
-                  {asset.status === 'available' ? 'Available' : 'Unavailable'}
-                </Badge>
+        {filteredAssets.map((asset) => {
+          const cartItem = getCartItem(asset.assetId);
+          const inCart = isInCart(asset.assetId);
+          const unavailable = asset.status !== 'available' || asset.availableQty <= 0;
+
+          return (
+            <Card key={asset.assetId} className={`group hover:shadow-lg transition-all border-none shadow-md overflow-hidden flex flex-col ${inCart ? 'ring-2 ring-primary' : ''}`}>
+              <div className="h-40 bg-muted flex items-center justify-center relative overflow-hidden">
+                {asset.imageUrl ? (
+                  <img src={asset.imageUrl} alt={asset.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                ) : (
+                  getCategoryIcon(asset.category)
+                )}
+                <div className="absolute top-2 right-2">
+                  <Badge variant={!unavailable ? 'default' : 'destructive'}>
+                    {!unavailable ? `Available (${asset.availableQty})` : 'Unavailable'}
+                  </Badge>
+                </div>
+                {inCart && (
+                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-full p-1">
+                    <Check className="h-3 w-3" />
+                  </div>
+                )}
               </div>
-            </div>
-            <CardHeader className="p-4 space-y-1">
-              <div className="flex justify-between items-start">
-                <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">{asset.category}</Badge>
-              </div>
-              <CardTitle className="text-lg font-bold line-clamp-1">{asset.brand} {asset.model}</CardTitle>
-              <p className="text-[10px] font-mono text-muted-foreground">TAG: {asset.assetTag}</p>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 flex-1">
-              <p className="text-sm text-muted-foreground line-clamp-2">{asset.description}</p>
-            </CardContent>
-            <CardFooter className="p-4 border-t bg-muted/20">
-              <Button
-                className="w-full"
-                disabled={asset.status !== 'available'}
-                onClick={() => handleOpenRequest(asset)}
-              >
-                Request Borrow
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
+              <CardHeader className="p-4 space-y-1">
+                <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider w-fit">{asset.category}</Badge>
+                <CardTitle className="text-lg font-bold line-clamp-1">{asset.brand} {asset.model}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 flex-1">
+                <p className="text-sm text-muted-foreground line-clamp-2">{asset.description}</p>
+              </CardContent>
+              <CardFooter className="p-4 border-t bg-muted/20">
+                {inCart && cartItem ? (
+                  <div className="w-full flex items-center gap-2">
+                    <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => updateQuantity(asset.assetId, cartItem.quantity - 1)}>
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="flex-1 text-center font-medium text-sm">{cartItem.quantity}</span>
+                    <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => addToCart(asset)}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => removeFromCart(asset.assetId)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button className="w-full gap-2" disabled={unavailable} onClick={() => addToCart(asset)}>
+                    <Plus className="h-4 w-4" /> Add to Cart
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
       {filteredAssets.length === 0 && (
@@ -169,48 +244,74 @@ export default function AssetCatalogue() {
         </div>
       )}
 
-      <Dialog open={requestModalOpen} onOpenChange={setRequestModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      {/* Cart Dialog */}
+      <Dialog open={cartOpen} onOpenChange={setCartOpen}>
+        <DialogContent className="max-w-[95vw] md:max-w-lg rounded-xl">
           <DialogHeader>
-            <DialogTitle>Request Borrow</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" /> Borrow Request
+            </DialogTitle>
             <DialogDescription>
-              Submit request for <strong>{selectedAsset?.brand} {selectedAsset?.model}</strong> (Tag: {selectedAsset?.assetTag}).
+              Review your selected assets and fill in the details.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="purpose">Purpose</Label>
-              <Textarea
-                id="purpose"
-                placeholder="Why do you need this?"
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-              />
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase">Selected Assets ({totalItems} unit(s))</Label>
+              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                {cart.map(cartItem => (
+                  <div key={cartItem.asset.assetId} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{cartItem.asset.brand} {cartItem.asset.model}</p>
+                      <p className="text-[10px] text-muted-foreground">{cartItem.asset.category}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => updateQuantity(cartItem.asset.assetId, cartItem.quantity - 1)}>
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="text-sm font-medium w-6 text-center">{cartItem.quantity}</span>
+                      <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => addToCart(cartItem.asset)}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(cartItem.asset.assetId)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <div className="grid gap-2">
+              <Label>Purpose / Tujuan</Label>
+              <Textarea placeholder="Why do you need this equipment?" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+            </div>
+
+            {/* INPUT BARU: TEMPAT DIGUNAKAN */}
+            <div className="grid gap-2">
+              <Label>Tempat Digunakan</Label>
+              <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={location} onChange={(e) => setLocation(e.target.value)} />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="borrow-date">Borrow Date</Label>
-                <Input
-                  id="borrow-date"
-                  type="date"
-                  value={borrowDate}
-                  onChange={(e) => setBorrowDate(e.target.value)}
-                />
+                <Label>Borrow Date</Label>
+                <Input type="date" value={borrowDate} onChange={(e) => setBorrowDate(e.target.value)} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="return-date">Return Date</Label>
-                <Input
-                  id="return-date"
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                />
+                <Label>Return Date</Label>
+                <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRequestModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitRequest} disabled={!purpose || !borrowDate || !returnDate}>Submit Request</Button>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCartOpen(false)}>Cancel</Button>
+            {/* Tambah location ke dalam disabled logic supaya form tak boleh submit selagi kosong */}
+            <Button onClick={handleSubmitRequest} disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0}>
+              Submit Request ({totalItems} unit(s))
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -100,13 +100,6 @@ export async function seedDefaultData() {
     await prisma.user.createMany({ data: DEFAULT_USERS });
   }
 
-  const assetCount = await prisma.asset.count();
-  if (assetCount === 0) {
-    await prisma.asset.createMany({ data: DEFAULT_ASSETS });
-  }
-
-  const unitCount = await prisma.assetUnit.count();
-  if (unitCount === 0) {
-    await prisma.assetUnit.createMany({ data: DEFAULT_UNITS });
-  }
+  // ─── Asset & Unit seed dibuang ───────────────────────────────
+  // Admin akan tambah sendiri melalui Asset Management page
 }

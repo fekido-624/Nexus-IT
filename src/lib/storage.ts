@@ -54,24 +54,44 @@ export interface AssetUnit {
   addedDate: string;
 }
 
+export interface BorrowRequestItem {
+  itemId: string;
+  requestId: string;
+  assetId: string;
+  assetName: string;
+  assignedUnitId?: string;
+  assignedAssetTag?: string;
+  assignedSerialNumber?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'returned';
+  notes?: string;
+}
+
+export interface BorrowRequestItem {
+  itemId: string;
+  requestId: string;
+  assetId: string;
+  assetName: string;
+  assignedUnitId?: string;
+  assignedAssetTag?: string;
+  assignedSerialNumber?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'returned';
+  notes?: string;
+}
+
 export interface BorrowRequest {
   requestId: string;
   userId: string;
   userName: string;
   userDept: string;
-  assetId: string;
-  assetName: string;
-  assignedUnitId: string;
-  assignedAssetTag: string;
-  assignedSerialNumber?: string;
-  quantity: number;
   purpose: string;
-  requestDate: string;
   borrowDate: string;
+  location?: string;
   returnDate: string;
+  requestDate: string;
   status: 'pending' | 'approved' | 'rejected' | 'returning' | 'returned';
-  approvedBy: string;
-  notes: string;
+  approvedBy?: string;
+  notes?: string;
+  items: BorrowRequestItem[];
 }
 
 const JSON_HEADERS = {

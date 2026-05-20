@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Storage, Asset, AssetUnit } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,12 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Pencil, Trash2, Search, Upload, X, Tag } from 'lucide-react';
+// Tambah Download icon di sini
+import { Plus, Pencil, Trash2, Search, Upload, Download, X, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import React from 'react';
 
 const CATEGORIES = ['Laptop', 'Monitor', 'Keyboard', 'Mouse', 'Projector', 'Printer', 'Networking', 'UPS', 'Others'];
 
@@ -46,6 +48,9 @@ export default function AssetManagement() {
   const [unitCondition, setUnitCondition] = useState<'good' | 'damaged' | 'lost'>('good');
   const [unitNotes, setUnitNotes] = useState('');
 
+  // Rujukan input fail tersembunyi untuk fungsi muat naik
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,6 +65,135 @@ export default function AssetManagement() {
     } catch {
       toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
     }
+  };
+
+// ─── FUNGSI BULK UPLOAD (KEMAS KINI) ───────────────────────────────────────
+
+  const handleDownloadTemplate = () => {
+    // Header baru: Tiada lagi quantity, digantikan dengan serialNumbers
+    const headers = "category,brand,model,description,serialNumbers\n";
+    
+    // Contoh data (Perhatikan penggunaan simbol ';' untuk memisahkan serial number)
+    const sample = "Laptop,Dell,Latitude 5420,Laptop pejabat,SN-001;SN-002;SN-003\nMonitor,HP,24f,Monitor 24 inci,TAG-MON-11;TAG-MON-12\n";
+    
+    const blob = new Blob([headers + sample], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Template_Upload_Aset_KemasKini.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+      toast({ variant: "destructive", title: "Format Salah", description: "Sila muat naik fail berformat CSV sahaja." });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = e.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) {
+        toast({ variant: "destructive", title: "Fail Kosong", description: "Sila masukkan data aset ke dalam template." });
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const newAssets: Asset[] = [];
+      const newUnits: AssetUnit[] = [];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const timeStr = new Date().toISOString();
+
+      let successCount = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        // Abaikan koma yang mungkin ada di dalam description buat sementara
+        const currentLine = lines[i].split(',').map(val => val.trim());
+        
+        if (currentLine.length >= 2) {
+          const brand = currentLine[headers.indexOf('brand')] || '-';
+          const model = currentLine[headers.indexOf('model')] || '-';
+          const assetId = `ASSET-BULK-${Date.now()}-${i}`;
+          
+          // 1. Dapatkan senarai Serial Number dari Excel dan pecahkan guna simbol ';'
+          const serialsRaw = currentLine[headers.indexOf('serialnumbers')] || '';
+          const serialsList = serialsRaw.split(';').map(s => s.trim()).filter(s => s !== '');
+          const qty = serialsList.length; // Kuantiti automatik ikut bilangan SN
+
+          if (qty > 0) {
+            // 2. Cipta Profil Aset Induk
+            newAssets.push({
+              assetId,
+              category: currentLine[headers.indexOf('category')] || 'Others',
+              brand,
+              model,
+              assetTag: `${brand}-${model}`.replace(/\s+/g, '-').toUpperCase(),
+              description: currentLine[headers.indexOf('description')] || '',
+              imageUrl: '', 
+              status: 'available',
+              availableQty: qty,
+              addedDate: todayStr,
+              lastUpdated: timeStr
+            });
+
+            // 3. Cipta Unit mengikut Serial Number SEBENAR yang ditaip
+            serialsList.forEach((serial, index) => {
+              newUnits.push({
+                unitId: `UNIT-BULK-${Date.now()}-${i}-${index}`,
+                assetId: assetId,
+                assetName: `${brand} ${model}`,
+                assetTag: serial, // <--- Menggunakan Serial Number sebenar
+                brand: brand,
+                model: model,
+                category: currentLine[headers.indexOf('category')] || 'Others',
+                condition: 'good',
+                currentStatus: 'available',
+                currentBorrowerId: '',
+                currentBorrowerName: '',
+                currentRequestId: '',
+                borrowHistory: '[]',
+                notes: 'Muat naik pukal',
+                addedDate: todayStr
+              });
+            });
+            successCount++;
+          }
+        }
+      }
+
+      if (newAssets.length > 0) {
+        try {
+          const currentAssets = await Storage.getAssets();
+          const currentUnitsObj = await Storage.getUnits();
+          
+          await Storage.saveAssets([...currentAssets, ...newAssets]);
+          await Storage.saveUnits([...currentUnitsObj, ...newUnits]);
+          
+          toast({ 
+            title: "Muat Naik Berjaya", 
+            description: `${successCount} jenis aset dan ${newUnits.length} unit telah ditambah.` 
+          });
+          
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          await loadAll();
+        } catch (error) {
+          toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan aset pukal." });
+        }
+      } else {
+        toast({ variant: "destructive", title: "Tiada Data Aset", description: "Sila pastikan kolum 'serialNumbers' telah diisi dengan betul." });
+      }
+    };
+    
+    reader.readAsText(file);
   };
 
   // ─── ASSET HANDLERS ───────────────────────────────────────────
@@ -318,14 +452,31 @@ export default function AssetManagement() {
 
   return (
     <div className="space-y-6">
+      {/* ─── HEADER BARU DENGAN BUTANG UPLOAD CSV ─── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Asset Management</h1>
           <p className="text-sm text-muted-foreground">Register assets and manage individual unit serial numbers.</p>
         </div>
-        <Button className="w-full md:w-auto gap-2" onClick={() => setIsAssetDialogOpen(true)}>
-          <Plus className="h-4 w-4" /> Register New Asset
-        </Button>
+        <div className="flex flex-wrap w-full md:w-auto gap-2">
+          {/* Input fail tersembunyi yang akan dipanggil oleh butang Upload */}
+          <input 
+            type="file" 
+            accept=".csv" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileUpload} 
+          />
+          <Button variant="outline" className="flex-1 md:flex-none gap-2" onClick={handleDownloadTemplate}>
+            <Download className="h-4 w-4" /> Template CSV
+          </Button>
+          <Button variant="outline" className="flex-1 md:flex-none gap-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" /> Upload CSV
+          </Button>
+          <Button className="w-full md:w-auto gap-2" onClick={() => setIsAssetDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> Register New Asset
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter */}

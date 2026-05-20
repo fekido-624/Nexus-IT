@@ -13,30 +13,34 @@ export async function POST(request: Request) {
 
   if (type === 'users') {
     const incomingIds = data.map((u: any) => u.uid);
-    
+
+    // Delete items milik request milik user yang dah delete
+    await prisma.borrowRequestItem.deleteMany({
+      where: { request: { userId: { notIn: incomingIds } } }
+    });
+
     // Delete requests milik user yang dah delete
     await prisma.borrowRequest.deleteMany({ where: { userId: { notIn: incomingIds } } });
-    
-    // Baru delete users
-    await prisma.user.deleteMany({ where: { uid: { notIn: incomingIds } } });
-    
-    await Promise.all(data.map(async (user: any) => {
-      const userCreate = { 
-        uid: user.uid, 
-        name: user.name, 
-        email: user.email, 
-        department: user.department, 
-        role: user.role, 
-        password: user.password || 'user123',
-        jawatan: user.jawatan || ''  // ← tambah ni
-      };
 
-      const userUpdate: any = { 
-        name: user.name, 
-        email: user.email, 
-        department: user.department, 
+    // Delete users
+    await prisma.user.deleteMany({ where: { uid: { notIn: incomingIds } } });
+
+    await Promise.all(data.map(async (user: any) => {
+      const userCreate = {
+        uid: user.uid,
+        name: user.name,
+        email: user.email,
+        department: user.department,
         role: user.role,
-        jawatan: user.jawatan || ''  // ← tambah ni
+        password: user.password || 'user123',
+        jawatan: user.jawatan || ''
+      };
+      const userUpdate: any = {
+        name: user.name,
+        email: user.email,
+        department: user.department,
+        role: user.role,
+        jawatan: user.jawatan || ''
       };
       if (user.password) userUpdate.password = user.password;
       await prisma.user.upsert({ where: { uid: user.uid }, update: userUpdate, create: userCreate });
@@ -46,16 +50,16 @@ export async function POST(request: Request) {
 
   if (type === 'assets') {
     const incomingIds = data.map((a: any) => a.assetId);
-    
-    // Step 1: Delete requests yang relate to deleted assets
-    await prisma.borrowRequest.deleteMany({ where: { assetId: { notIn: incomingIds } } });
-    
-    // Step 2: Delete units
+
+    // Delete items yang relate to deleted assets
+    await prisma.borrowRequestItem.deleteMany({ where: { assetId: { notIn: incomingIds } } });
+
+    // Delete units
     await prisma.assetUnit.deleteMany({ where: { assetId: { notIn: incomingIds } } });
-    
-    // Step 3: Baru delete assets
+
+    // Delete assets
     await prisma.asset.deleteMany({ where: { assetId: { notIn: incomingIds } } });
-    
+
     await Promise.all(data.map(async (asset: any) => {
       await prisma.asset.upsert({ where: { assetId: asset.assetId }, update: asset, create: asset });
     }));
@@ -71,12 +75,57 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
-  if (type === 'requests') {
+ if (type === 'requests') {
     const incomingIds = data.map((r: any) => r.requestId);
-    await prisma.borrowRequest.deleteMany({ where: { requestId: { notIn: incomingIds } } });
-    await Promise.all(data.map(async (requestItem: any) => {
-      await prisma.borrowRequest.upsert({ where: { requestId: requestItem.requestId }, update: requestItem, create: requestItem });
+
+    // Delete items dulu
+    await prisma.borrowRequestItem.deleteMany({
+      where: { requestId: { notIn: incomingIds } }
+    });
+
+    // Delete requests
+    await prisma.borrowRequest.deleteMany({
+      where: { requestId: { notIn: incomingIds } }
+    });
+
+    await Promise.all(data.map(async (req: any) => {
+      const { items, ...requestData } = req;
+
+      // PASTIKAN SEMUA FIELD TERMASUK LOCATION DISALIN DENGAN BETUL
+      const safeRequestData = {
+        requestId: requestData.requestId,
+        userId: requestData.userId,
+        userName: requestData.userName,
+        userDept: requestData.userDept,
+        purpose: requestData.purpose,
+        location: requestData.location || null, // <--- Tangkap location di sini
+        borrowDate: requestData.borrowDate,
+        returnDate: requestData.returnDate,
+        requestDate: requestData.requestDate,
+        status: requestData.status,
+        approvedBy: requestData.approvedBy || null,
+        notes: requestData.notes || null
+      };
+
+      // Upsert request
+      await prisma.borrowRequest.upsert({
+        where: { requestId: req.requestId },
+        update: safeRequestData,
+        create: safeRequestData
+      });
+
+      // Upsert items
+      if (items && items.length > 0) {
+        await Promise.all(items.map(async (item: any) => {
+          await prisma.borrowRequestItem.upsert({
+            where: { itemId: item.itemId },
+            update: item,
+            create: item
+          });
+        }));
+      }
     }));
+
     return NextResponse.json({ success: true });
   }
 

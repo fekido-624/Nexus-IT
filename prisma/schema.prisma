@@ -31,7 +31,8 @@ model Asset {
   lastUpdated String
   imageUrl    String?
   units       AssetUnit[]
-  requests    BorrowRequest[]
+  
+  items    BorrowRequestItem[]  // ← tambah ni
 }
 
 model AssetUnit {
@@ -55,23 +56,33 @@ model AssetUnit {
 }
 
 model BorrowRequest {
-  requestId        String  @id @default(cuid())
-  userId           String
-  assetId          String
-  userName         String
-  userDept         String
-  assetName        String
-  assignedUnitId   String?
-  assignedAssetTag String?
-  assignedSerialNumber String?
-  quantity         Int
-  purpose          String
-  requestDate      String
-  borrowDate       String
-  returnDate       String
-  status           String
-  approvedBy       String?
-  notes            String
-  user             User    @relation(fields: [userId], references: [uid])
-  asset            Asset   @relation(fields: [assetId], references: [assetId])
+  requestId    String              @id @default(cuid())
+  userId       String
+  userName     String
+  userDept     String
+  purpose      String
+  location    String?
+  borrowDate   String
+  returnDate   String
+  status       String
+  approvedBy   String?
+  requestDate  String
+  notes        String?
+  user         User                @relation(fields: [userId], references: [uid])
+  items        BorrowRequestItem[]
 }
+
+model BorrowRequestItem {
+  itemId               String        @id @default(cuid())
+  requestId            String
+  assetId              String
+  assetName            String
+  assignedUnitId       String?
+  assignedAssetTag     String?
+  assignedSerialNumber String?
+  status               String
+  notes                String?
+  request              BorrowRequest @relation(fields: [requestId], references: [requestId])
+  asset                Asset         @relation(fields: [assetId], references: [assetId])
+}
+
