@@ -11,8 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-// Tambah Trash2 di sini
-import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck, Printer, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck, Printer, ChevronDown, ChevronUp, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { printBorangKEWPA9 } from '@/lib/print-borang';
@@ -35,6 +34,14 @@ interface ItemApprovalState {
   }
 }
 
+// Interface baru untuk simpan senarai aset yang dipilih dalam Manual Assign
+interface ManualItem {
+  assetId: string;
+  unitId: string;
+  assetName: string;
+  assetTag: string;
+}
+
 export default function BorrowRequests() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -45,7 +52,6 @@ export default function BorrowRequests() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [expandedReqs, setExpandedReqs] = useState<string[]>([]);
   
-  // STATE BARU: Untuk simpan ID rekod yang di-tick
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
 
   // Approval dialog
@@ -53,10 +59,13 @@ export default function BorrowRequests() {
   const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null);
   const [itemApprovalState, setItemApprovalState] = useState<ItemApprovalState>({});
 
-  // Manual assign dialog
+  // Manual assign dialog (DIKEMAS KINI)
   const [isManualAssignOpen, setIsManualAssignOpen] = useState(false);
   const [manualUnits, setManualUnits] = useState<AssetUnit[]>([]);
-  const [manualForm, setManualForm] = useState({ userId: '', assetId: '', unitId: '', purpose: '', borrowDate: '', returnDate: '' });
+  const [manualForm, setManualForm] = useState({ userId: '', purpose: '', borrowDate: '', returnDate: '' });
+  const [manualItems, setManualItems] = useState<ManualItem[]>([]); // Menyimpan multiple assets
+  const [tempAssetId, setTempAssetId] = useState('');
+  const [tempUnitId, setTempUnitId] = useState('');
   
   // Return dialog
   const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
@@ -94,9 +103,6 @@ export default function BorrowRequests() {
     return allUnitsData.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged');
   };
 
-  // ==========================================
-  // FUNGSI BARU: Padam Rekod (Bulk Delete)
-  // ==========================================
   const handleDeleteSelected = async () => {
     if (!window.confirm(`Adakah anda pasti mahu memadam ${selectedRequestIds.length} rekod ini? Tindakan ini tidak boleh diundur.`)) {
       return;
@@ -110,7 +116,6 @@ export default function BorrowRequests() {
       const requestsToDelete = currentRequests.filter(r => selectedRequestIds.includes(r.requestId));
       const requestsToKeep = currentRequests.filter(r => !selectedRequestIds.includes(r.requestId));
 
-      // Jika rekod yang dipadam tu tengah pinjam barang, kita 'lepaskan' aset tu semula
       for (const req of requestsToDelete) {
         if (req.status === 'approved' || req.status === 'returning') {
           for (const item of req.items) {
@@ -127,8 +132,8 @@ export default function BorrowRequests() {
       await Storage.saveAssets(assets);
 
       toast({ title: "Berjaya Dipadam", description: `${selectedRequestIds.length} rekod permohonan telah dipadam.` });
-      setSelectedRequestIds([]); // Reset pilihan
-      await loadData(); // Refresh jadual
+      setSelectedRequestIds([]); 
+      await loadData(); 
     } catch (error) {
       toast({ variant: "destructive", title: "Ralat", description: "Gagal memadam rekod permohonan." });
     }
@@ -216,7 +221,6 @@ export default function BorrowRequests() {
 
       const updatedItems: BorrowRequestItem[] = returnRequest.items.map(item => {
         if (returnItemIds.includes(item.itemId)) {
-          // as any DITAMBAHKAN DI SINI
           return { ...item, status: 'returned' as any };
         }
         return item;
@@ -225,7 +229,6 @@ export default function BorrowRequests() {
       const allItemsReturnedOrRejected = updatedItems.every(i => i.status === 'returned' || i.status === 'rejected');
       const newOverallStatus = allItemsReturnedOrRejected ? 'returned' : 'returning';
 
-      // Simpan request yang baru
       const newRequestsList = allRequests.map(r => r.requestId === returnRequest.requestId ? { ...r, status: newOverallStatus as any, items: updatedItems } : r);
       await Storage.saveRequests(newRequestsList);
 
@@ -245,9 +248,7 @@ export default function BorrowRequests() {
 
       toast({ title: "Return Processed", description: `Selected items have been returned successfully.` });
       
-      // Update data di skrin secara manual untuk elak delay
       setRequests(newRequestsList.reverse()); 
-      
       setIsReturnDialogOpen(false);
       setReturnRequest(null);
       setReturnItemIds([]);
@@ -256,41 +257,95 @@ export default function BorrowRequests() {
     }
   };
 
-  const handleAssetSelect = async (assetId: string) => {
-    const filtered = allUnitsData.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged');
+  // ==========================================
+  // LOGIK MANUAL ASSIGNMENT BAHARU (MULTIPLE)
+  // ==========================================
+
+  const handleAssetSelect = (assetId: string) => {
+    // Tapis unit yang 'available' DAN belum dimasukkan dalam senarai (cart)
+    const filtered = allUnitsData.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged' && !manualItems.some(item => item.unitId === u.unitId));
     setManualUnits(filtered);
-    setManualForm({ ...manualForm, assetId, unitId: '' });
+    setTempAssetId(assetId);
+    setTempUnitId('');
   };
 
-  const handleManualAssign = async () => {
-    const { userId, assetId, unitId, purpose, borrowDate, returnDate } = manualForm;
-    if (!userId || !assetId || !unitId || !borrowDate || !returnDate || !user) {
-      toast({ variant: "destructive", title: "Incomplete Form", description: "Please fill in all details." }); return;
+  const handleAddManualItem = () => {
+    if (!tempAssetId || !tempUnitId) return;
+    
+    const targetAsset = allAssets.find(a => a.assetId === tempAssetId);
+    const targetUnit = manualUnits.find(u => u.unitId === tempUnitId);
+
+    if (targetAsset && targetUnit) {
+      setManualItems([...manualItems, {
+        assetId: targetAsset.assetId,
+        unitId: targetUnit.unitId,
+        assetName: `${targetAsset.brand} ${targetAsset.model}`,
+        assetTag: targetUnit.assetTag
+      }]);
+      setTempAssetId('');
+      setTempUnitId('');
+      setManualUnits([]);
     }
+  };
+
+  const handleRemoveManualItem = (unitId: string) => {
+    setManualItems(manualItems.filter(item => item.unitId !== unitId));
+  };
+
+  const handleManualAssignSubmit = async () => {
+    const { userId, purpose, borrowDate, returnDate } = manualForm;
+    if (!userId || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
+      toast({ variant: "destructive", title: "Incomplete Form", description: "Please fill in all details and select at least one asset." }); 
+      return;
+    }
+    
     try {
       const targetUser = allUsers.find(u => u.uid === userId);
-      const targetAsset = allAssets.find(a => a.assetId === assetId);
-      const targetUnit = manualUnits.find(u => u.unitId === unitId);
-      if (!targetUser || !targetAsset || !targetUnit) return;
+      if (!targetUser) return;
 
       const requestId = `REQ-MAN-${Date.now()}`;
+      const reqItems: BorrowRequestItem[] = [];
+      
+      let allUnits = await Storage.getUnits();
+      let allAssetsList = await Storage.getAssets();
+
+      // Loop semua items yang dipilih dalam cart admin
+      for (let i = 0; i < manualItems.length; i++) {
+        const selected = manualItems[i];
+        
+        reqItems.push({
+          itemId: `ITEM-${Date.now()}-${i}`,
+          requestId,
+          assetId: selected.assetId,
+          assetName: selected.assetName,
+          assignedUnitId: selected.unitId,
+          assignedAssetTag: selected.assetTag,
+          assignedSerialNumber: selected.assetTag,
+          status: 'approved',
+          notes: ''
+        });
+
+        // Kemas kini database unit & asset kuantiti
+        allUnits = allUnits.map(u => u.unitId === selected.unitId ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: targetUser.uid, currentBorrowerName: targetUser.name, currentRequestId: requestId } : u);
+        allAssetsList = allAssetsList.map(a => a.assetId === selected.assetId ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1) } : a);
+      }
+
       const newRequest: BorrowRequest = {
         requestId, userId: targetUser.uid, userName: targetUser.name, userDept: targetUser.department, purpose,
         requestDate: new Date().toISOString().split('T')[0], borrowDate, returnDate, status: 'approved', approvedBy: user.name, notes: 'Manual assignment by admin',
-        items: [{ itemId: `ITEM-${Date.now()}`, requestId, assetId: targetAsset.assetId, assetName: `${targetAsset.brand} ${targetAsset.model}`, assignedUnitId: targetUnit.unitId, assignedAssetTag: targetUnit.assetTag, assignedSerialNumber: targetUnit.assetTag, status: 'approved', notes: '' }]
+        items: reqItems
       };
 
       const currentRequests = await Storage.getRequests();
       await Storage.saveRequests([...currentRequests, newRequest]);
+      await Storage.saveUnits(allUnits);
+      await Storage.saveAssets(allAssetsList);
 
-      const allUnits = await Storage.getUnits();
-      await Storage.saveUnits(allUnits.map(u => u.unitId === targetUnit.unitId ? { ...u, currentStatus: 'borrowed' as const, currentBorrowerId: targetUser.uid, currentBorrowerName: targetUser.name, currentRequestId: requestId } : u));
-
-      const allAssetsList = await Storage.getAssets();
-      await Storage.saveAssets(allAssetsList.map(a => a.assetId === targetAsset.assetId ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1) } : a));
-
-      toast({ title: "Asset Assigned", description: `Successfully assigned ${targetAsset.brand} to ${targetUser.name}.` });
-      setIsManualAssignOpen(false); setManualForm({ userId: '', assetId: '', unitId: '', purpose: '', borrowDate: '', returnDate: '' });
+      toast({ title: "Assets Assigned", description: `Successfully assigned ${manualItems.length} unit(s) to ${targetUser.name}.` });
+      
+      setIsManualAssignOpen(false); 
+      setManualForm({ userId: '', purpose: '', borrowDate: '', returnDate: '' });
+      setManualItems([]);
       await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to assign asset" });
@@ -330,7 +385,6 @@ export default function BorrowRequests() {
           <p className="text-sm text-muted-foreground">Manage and approve equipment requests from staff.</p>
         </div>
         <div className="flex w-full md:w-auto gap-2">
-          {/* BUTANG PADAM MUNCUL BILA ADA CHECKBOX DITICK */}
           {selectedRequestIds.length > 0 && (
             <Button variant="destructive" className="gap-2" onClick={handleDeleteSelected}>
               <Trash2 className="h-4 w-4" /> Padam ({selectedRequestIds.length})
@@ -378,7 +432,6 @@ export default function BorrowRequests() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                {/* KOTAK CHECKBOX SELECT ALL */}
                 <TableHead className="w-[40px] px-4">
                   <input 
                     type="checkbox"
@@ -407,7 +460,6 @@ export default function BorrowRequests() {
                 filteredRequests.map((req) => (
                   <React.Fragment key={req.requestId}>
                     <TableRow className={selectedRequestIds.includes(req.requestId) ? "bg-muted/30" : ""}>
-                      {/* KOTAK CHECKBOX SETIAP BARIS */}
                       <TableCell className="w-[40px] px-4">
                         <input 
                           type="checkbox"
@@ -512,9 +564,8 @@ export default function BorrowRequests() {
         </CardContent>
       </Card>
 
-      {/* Approval Dialog (Sama) */}
+      {/* Approval Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
-        {/* ... kandungan dalam tidak berubah ... */}
         <DialogContent className="max-w-[95vw] md:max-w-2xl rounded-xl">
           <DialogHeader><DialogTitle>Process Borrow Request</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -571,11 +622,13 @@ export default function BorrowRequests() {
         </DialogContent>
       </Dialog>
 
-      {/* Manual Assignment Dialog (Sama) */}
+      {/* Manual Assignment Dialog (MULTIPLE ASSETS) */}
       <Dialog open={isManualAssignOpen} onOpenChange={setIsManualAssignOpen}>
-        <DialogContent className="max-w-[95vw] md:max-w-md rounded-xl">
+        <DialogContent className="max-w-[95vw] md:max-w-xl rounded-xl">
           <DialogHeader><DialogTitle>Direct Assignment</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-2 max-h-[80vh] overflow-y-auto">
+            
+            {/* Bahagian Borang Utama */}
             <div className="grid gap-2">
               <Label>Select Staff</Label>
               <Select value={manualForm.userId} onValueChange={(val) => setManualForm({...manualForm, userId: val})}>
@@ -583,38 +636,68 @@ export default function BorrowRequests() {
                 <SelectContent>{allUsers.map(u => <SelectItem key={u.uid} value={u.uid}>{u.name} ({u.department})</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Asset Type</Label>
-                <Select value={manualForm.assetId} onValueChange={handleAssetSelect}>
-                  <SelectTrigger><SelectValue placeholder="Select asset..." /></SelectTrigger>
-                  <SelectContent>{allAssets.map(a => <SelectItem key={a.assetId} value={a.assetId}>{a.brand} {a.model}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Available Unit</Label>
-                <Select value={manualForm.unitId} onValueChange={(val) => setManualForm({...manualForm, unitId: val})} disabled={!manualForm.assetId}>
-                  <SelectTrigger><SelectValue placeholder="Select serial..." /></SelectTrigger>
-                  <SelectContent>
-                    {manualUnits.length === 0 ? <SelectItem value="none" disabled>No units</SelectItem> : manualUnits.map(u => <SelectItem key={u.unitId} value={u.unitId}>{u.assetTag}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2"><Label>Borrow Date</Label><Input type="date" value={manualForm.borrowDate} onChange={(e) => setManualForm({...manualForm, borrowDate: e.target.value})} /></div>
               <div className="grid gap-2"><Label>Return Date</Label><Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} /></div>
             </div>
             <div className="grid gap-2"><Label>Purpose / Notes</Label><Textarea placeholder="Manual assignment details..." value={manualForm.purpose} onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})} /></div>
+
+            {/* Bahagian Cart (Tambah Item Berbilang) */}
+            <div className="border rounded-xl p-4 bg-muted/20 space-y-4">
+              <Label className="text-primary font-bold">Add Equipment to Assign</Label>
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1 grid gap-2">
+                  <Select value={tempAssetId} onValueChange={handleAssetSelect}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="1. Select asset model..." /></SelectTrigger>
+                    <SelectContent>{allAssets.map(a => <SelectItem key={a.assetId} value={a.assetId}>{a.brand} {a.model}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 grid gap-2">
+                  <Select value={tempUnitId} onValueChange={setTempUnitId} disabled={!tempAssetId}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="2. Select serial..." /></SelectTrigger>
+                    <SelectContent>
+                      {manualUnits.length === 0 ? <SelectItem value="none" disabled>No units available</SelectItem> : manualUnits.map(u => <SelectItem key={u.unitId} value={u.unitId}>{u.assetTag}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button className="mt-auto gap-2" onClick={handleAddManualItem} disabled={!tempAssetId || !tempUnitId}>
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              </div>
+
+              {/* Senarai Item Yang Bakal Diberikan */}
+              {manualItems.length > 0 && (
+                <div className="space-y-2 mt-4 border-t pt-4">
+                  <Label className="text-xs text-muted-foreground uppercase">Selected Items ({manualItems.length})</Label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                    {manualItems.map(item => (
+                      <div key={item.unitId} className="flex items-center justify-between bg-background border p-2 rounded-lg">
+                        <div className="text-sm">
+                          <span className="font-medium">{item.assetName}</span>
+                          <Badge variant="secondary" className="ml-2 font-mono text-[10px]">{item.assetTag}</Badge>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleRemoveManualItem(item.unitId)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsManualAssignOpen(false)}>Cancel</Button>
-            <Button onClick={handleManualAssign} disabled={!manualForm.userId || !manualForm.unitId}>Assign Asset</Button>
+          <DialogFooter className="gap-2 border-t pt-4">
+            <Button variant="outline" onClick={() => { setIsManualAssignOpen(false); setManualItems([]); }}>Cancel</Button>
+            <Button onClick={handleManualAssignSubmit} disabled={!manualForm.userId || manualItems.length === 0}>
+              Assign {manualItems.length > 0 ? `${manualItems.length} Asset(s)` : ''}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog> 
 
-      {/* Return Dialog (Sama) */}
+      {/* Return Dialog */}
       <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-md rounded-xl">
           <DialogHeader><DialogTitle>Confirm Return</DialogTitle></DialogHeader>
