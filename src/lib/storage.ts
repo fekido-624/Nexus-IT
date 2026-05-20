@@ -1,5 +1,14 @@
 "use client"
 
+
+
+export interface AssetCategory {
+  id: string;
+  name: string;
+  slug: string;
+  addedDate: string;
+}
+
 export interface User {
   uid: string;
   name: string;
@@ -133,7 +142,16 @@ export const Storage = {
   saveUnits: async (units: AssetUnit[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'units', data: units }) }),
   getRequests: async (): Promise<BorrowRequest[]> => apiFetch<BorrowRequest[]>('/api/requests'),
   saveRequests: async (requests: BorrowRequest[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'requests', data: requests }) }),
-
+  getCategories: async (): Promise<AssetCategory[]> => {
+    try {
+      const res = await apiFetch<AssetCategory[]>('/api/categories');
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return []; // Return array kosong jika API gagal bertindak balas
+    }
+  },
+  saveCategories: async (categories: AssetCategory[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'categories', data: categories }) }),
+  
   getSession: (): User | null => {
     const data = localStorage.getItem('it_session');
     return data ? JSON.parse(data) : null;

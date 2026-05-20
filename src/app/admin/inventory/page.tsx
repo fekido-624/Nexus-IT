@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
-import { Storage, AssetUnit, Asset } from '@/lib/storage';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Storage, AssetUnit, Asset, AssetCategory } from '@/lib/storage';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +30,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Search, Trash2, Pencil, Wrench, Upload } from 'lucide-react';
+import { Search, Pencil, Wrench } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Accordion,
@@ -40,11 +39,10 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 
-const CATEGORIES = ['Laptop', 'Monitor', 'Keyboard', 'Mouse', 'Projector', 'Printer', 'Networking', 'UPS', 'Others'];
-
 export default function UnitInventory() {
   const [units, setUnits] = useState<AssetUnit[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [categories, setCategories] = useState<AssetCategory[]>([]); // STATE BARU: Simpan kategori dari DB
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
@@ -61,76 +59,75 @@ export default function UnitInventory() {
   const [editAssetId, setEditAssetId] = useState('');
 
   useEffect(() => {
-  async function loadData() {
-    try {
-      const [loadedUnits, loadedAssets] = await Promise.all([
-        Storage.getUnits(),
-        Storage.getAssets()
-      ]);
-      setUnits(loadedUnits);
-      setAssets(loadedAssets);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
+    async function loadData() {
+      try {
+        const [loadedUnits, loadedAssets, loadedCategories] = await Promise.all([
+          Storage.getUnits(),
+          Storage.getAssets(),
+          Storage.getCategories() // Ambil kategori dinamik
+        ]);
+        setUnits(loadedUnits);
+        setAssets(loadedAssets);
+        setCategories(loadedCategories || []);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
+      }
     }
-  }
-  loadData();
-}, [toast]);
+    loadData();
+  }, [toast]);
 
   const handleUpdateUnit = async () => {
-  if (!editingUnit) return;
+    if (!editingUnit) return;
 
-  try {
-    const newStatus = status;
+    try {
+      const newStatus = status;
 
-    const updatedUnits = units.map(u => {
-      if (u.unitId === editingUnit.unitId) {
-        return {
-          ...u,
-          condition,
-          currentStatus: newStatus as any,
-          notes,
-          // Clear borrower info kalau status tukar ke available atau maintenance
-          ...(newStatus !== 'available' && {
-            currentBorrowerId: '',
-            currentBorrowerName: '',
-            currentRequestId: ''
-          })
-        };
-      }
-      return u;
-    });
+      const updatedUnits = units.map(u => {
+        if (u.unitId === editingUnit.unitId) {
+          return {
+            ...u,
+            condition,
+            currentStatus: newStatus as any,
+            notes,
+            ...(newStatus !== 'available' && {
+              currentBorrowerId: '',
+              currentBorrowerName: '',
+              currentRequestId: ''
+            })
+          };
+        }
+        return u;
+      });
 
-    await Storage.saveUnits(updatedUnits);
-    setUnits(updatedUnits);
+      await Storage.saveUnits(updatedUnits);
+      setUnits(updatedUnits);
 
-    const allAssets = await Storage.getAssets();
-    const updatedAssets = allAssets.map(a => {
-      if (a.assetId === editingUnit.assetId) {
-        return { ...a, status: (newStatus === 'available' ? 'available' : 'maintenance') as any };
-      }
-      return a;
-    });
-    await Storage.saveAssets(updatedAssets);
+      const allAssets = await Storage.getAssets();
+      const updatedAssets = allAssets.map(a => {
+        if (a.assetId === editingUnit.assetId) {
+          return { ...a, status: (newStatus === 'available' ? 'available' : 'maintenance') as any };
+        }
+        return a;
+      });
+      await Storage.saveAssets(updatedAssets);
 
-    toast({ title: "Unit Updated", description: `Record for ${editingUnit.assetTag} has been saved.` });
-    resetForm();
-  } catch (error) {
-    console.error('Failed to update unit:', error);
-    toast({ variant: "destructive", title: "Error", description: "Failed to update unit" });
-  }
-};
+      toast({ title: "Unit Updated", description: `Record for ${editingUnit.assetTag} has been saved.` });
+      resetForm();
+    } catch (error) {
+      console.error('Failed to update unit:', error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to update unit" });
+    }
+  };
 
-
-    const resetForm = () => {
+  const resetForm = () => {
     setCondition('good');
     setStatus('available');
     setNotes('');
-    setEditAssetId('');  // ← tambah ni
+    setEditAssetId('');  
     setEditingUnit(null);
     setIsEditDialogOpen(false);
   };
-
 
   const handleOpenEdit = (unit: AssetUnit) => {
     setEditingUnit(unit);
@@ -141,8 +138,6 @@ export default function UnitInventory() {
     setIsEditDialogOpen(true);
   };
 
- 
-
   const filteredUnits = units.filter(u => {
     const term = searchTerm.toLowerCase();
     const tag = (u.assetTag || "").toLowerCase();
@@ -150,15 +145,16 @@ export default function UnitInventory() {
     const cat = (u.category || "").toLowerCase();
     
     const matchesSearch = tag.includes(term) || name.includes(term) || cat.includes(term);
-    const matchesCategory = selectedCategory === 'all' || u.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || u.category.toLowerCase() === selectedCategory.toLowerCase();
     
     return matchesSearch && matchesCategory;
   });
 
-  const groupedUnits = CATEGORIES.reduce((acc, cat) => {
-    const catUnits = filteredUnits.filter(u => u.category === cat);
+  // ─── PENJANAAN KUMPULAN ACCORDION SECARA DINAMIK ───────────────────
+  const groupedUnits = categories.reduce((acc, cat) => {
+    const catUnits = filteredUnits.filter(u => u.category.toLowerCase() === cat.name.toLowerCase());
     if (catUnits.length > 0) {
-      acc[cat] = catUnits;
+      acc[cat.name] = catUnits;
     }
     return acc;
   }, {} as Record<string, AssetUnit[]>);
@@ -242,8 +238,8 @@ export default function UnitInventory() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -257,11 +253,11 @@ export default function UnitInventory() {
             </div>
           ) : (
             <Accordion type="single" collapsible defaultValue={Object.keys(groupedUnits)[0]} className="w-full">
-              {Object.entries(groupedUnits).map(([category, catUnits]) => (
-                <AccordionItem key={category} value={category} className="border-b last:border-b-0">
+              {Object.entries(groupedUnits).map(([categoryName, catUnits]) => (
+                <AccordionItem key={categoryName} value={categoryName} className="border-b last:border-b-0">
                   <AccordionTrigger className="hover:no-underline px-6 py-4 flex justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold text-sm">{category}</span>
+                      <span className="font-semibold text-sm">{categoryName}</span>
                       <Badge variant="outline" className="text-xs">
                         {catUnits.length}
                       </Badge>
@@ -285,21 +281,21 @@ export default function UnitInventory() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="bg-muted/50 p-3 rounded-lg text-sm mb-2">
-              <div className="grid gap-2">
-              <Label>Parent Asset</Label>
-              <Select value={editAssetId} onValueChange={setEditAssetId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select parent asset..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {assets.map(a => (
-                    <SelectItem key={a.assetId} value={a.assetId}>
-                      {a.brand} {a.model} ({a.assetId})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="grid gap-2 mb-2">
+                <Label>Parent Asset</Label>
+                <Select value={editAssetId} onValueChange={setEditAssetId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select parent asset..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assets.map(a => (
+                      <SelectItem key={a.assetId} value={a.assetId}>
+                        {a.brand} {a.model} ({a.assetId})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <p><strong>Asset:</strong> {editingUnit?.assetName}</p>
               <p><strong>Tag:</strong> {editingUnit?.assetTag}</p>
             </div>

@@ -60,8 +60,28 @@ export async function POST(request: Request) {
     // Delete assets
     await prisma.asset.deleteMany({ where: { assetId: { notIn: incomingIds } } });
 
+    // PROSES UPSERT YANG DIKEMAS KINI
     await Promise.all(data.map(async (asset: any) => {
-      await prisma.asset.upsert({ where: { assetId: asset.assetId }, update: asset, create: asset });
+      // Kita asingkan assetTag supaya tidak mengganggu proses UPDATE jika data sudah wujud
+      const { assetTag, ...otherAssetData } = asset;
+
+      await prisma.asset.upsert({ 
+        where: { assetId: asset.assetId }, 
+        update: {
+          category: asset.category,
+          brand: asset.brand,
+          model: asset.model,
+          description: asset.description,
+          imageUrl: asset.imageUrl,
+          status: asset.status,
+          availableQty: asset.availableQty,
+          lastUpdated: asset.lastUpdated
+          // JANGAN letak assetTag di sini supaya Prisma tidak pening semasa proses update
+        }, 
+        create: {
+          ...asset // Semasa create buat kali pertama, kita masukkan semua sekali termasuk assetTag
+        } 
+      });
     }));
     return NextResponse.json({ success: true });
   }
@@ -71,6 +91,26 @@ export async function POST(request: Request) {
     await prisma.assetUnit.deleteMany({ where: { unitId: { notIn: incomingIds } } });
     await Promise.all(data.map(async (unit: any) => {
       await prisma.assetUnit.upsert({ where: { unitId: unit.unitId }, update: unit, create: unit });
+    }));
+    return NextResponse.json({ success: true });
+  }
+
+  if (type === 'categories') {
+    const incomingIds = data.map((c: any) => c.id);
+    
+    // MENGGUNAKAN BYPASS 'as any' UNTUK MENGELAKKAN SEKATAN TYPYSCRIPT/PRISMA CACHE
+    const prismaBypass = prisma as any;
+    
+    // Padam kategori yang dibuang oleh admin
+    await prismaBypass.assetCategory.deleteMany({ where: { id: { notIn: incomingIds } } });
+    
+    // Cipta atau kemas kini kategori terkini
+    await Promise.all(data.map(async (cat: any) => {
+      await prismaBypass.assetCategory.upsert({
+        where: { id: cat.id },
+        update: { name: cat.name, slug: cat.slug },
+        create: { id: cat.id, name: cat.name, slug: cat.slug, addedDate: cat.addedDate || new Date().toISOString().split('T')[0] }
+      });
     }));
     return NextResponse.json({ success: true });
   }

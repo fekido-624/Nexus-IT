@@ -95,11 +95,31 @@ const DEFAULT_UNITS = [
 ];
 
 export async function seedDefaultData() {
-  const userCount = await prisma.user.count();
-  if (userCount === 0) {
-    await prisma.user.createMany({ data: DEFAULT_USERS });
-  }
+  // Kekalkan logik seed sedia ada anda untuk users/assets jika ada...
+  
+  const db = prisma as any; // <--- Pintas halangan TypeScript di sini juga
 
-  // ─── Asset & Unit seed dibuang ───────────────────────────────
-  // Admin akan tambah sendiri melalui Asset Management page
+  try {
+    const count = await db.assetCategory.count();
+    if (count === 0) {
+      const defaultCategories = [
+        { id: 'cat-1', name: 'Laptop', slug: 'laptop', addedDate: '2026-01-01' },
+        { id: 'cat-2', name: 'Monitor', slug: 'monitor', addedDate: '2026-01-01' },
+        { id: 'cat-3', name: 'Keyboard', slug: 'keyboard', addedDate: '2026-01-01' },
+        { id: 'cat-4', name: 'Mouse', slug: 'mouse', addedDate: '2026-01-01' },
+        { id: 'cat-5', name: 'Projector', slug: 'projector', addedDate: '2026-01-01' },
+        { id: 'cat-6', name: 'Printer', slug: 'printer', addedDate: '2026-01-01' },
+        { id: 'cat-7', name: 'Others', slug: 'others', addedDate: '2026-01-01' },
+      ];
+
+      await Promise.all(
+        defaultCategories.map(cat => 
+          db.assetCategory.create({ data: cat })
+        )
+      );
+      console.log("Kategori lalai berjaya dimasukkan!");
+    }
+  } catch (err) {
+    console.error("Ralat semasa menjalankan seed kategori:", err);
+  }
 }

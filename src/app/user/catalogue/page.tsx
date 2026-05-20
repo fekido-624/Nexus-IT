@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { Storage, Asset, BorrowRequest, BorrowRequestItem } from '@/lib/storage';
+import { Storage, Asset, AssetCategory } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Laptop, Monitor, MousePointer, Projector, Printer, Network, Power, Box, ShoppingCart, X, Plus, Check, Minus } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 interface CartItem {
   asset: Asset;
@@ -20,6 +20,8 @@ interface CartItem {
 
 export default function AssetCatalogue() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [categories, setCategories] = useState<AssetCategory[]>([]); // STATE BARU: Simpan data kategori dari DB
+  const [activeCategory, setActiveCategory] = useState('all');       // STATE BARU: Simpan kategori terpilih
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -27,38 +29,49 @@ export default function AssetCatalogue() {
   const { toast } = useToast();
 
   const [purpose, setPurpose] = useState('');
-  // STATE BARU: Tempat Digunakan
   const [location, setLocation] = useState(''); 
   const [borrowDate, setBorrowDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
 
   useEffect(() => {
-    async function loadAssets() {
+    async function loadData() {
       await Storage.init();
-      const data = await Storage.getAssets();
-      setAssets(data);
+      // Ambil data aset dan kategori secara serentak (Parallel fetching)
+      const [assetData, categoryData] = await Promise.all([
+        Storage.getAssets(),
+        Storage.getCategories()
+      ]);
+      setAssets(assetData);
+      setCategories(categoryData || []);
     }
-    loadAssets();
+    loadData();
   }, []);
 
-  const filteredAssets = assets.filter(asset =>
-    asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    asset.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ─── TIKET PENAPISAN KATEGORI & CARIAN ─────────────────────────────
+  const filteredAssets = assets.filter(asset => {
+    const matchesSearch = 
+      asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      asset.category.toLowerCase().includes(searchTerm.toLowerCase());
+      
+    // Penapisan kategori dinamik mengikut pilihan user
+    const matchesCategory = 
+      activeCategory === 'all' || 
+      asset.category.toLowerCase() === activeCategory.toLowerCase();
+
+    return matchesSearch && matchesCategory;
+  });
 
   const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'Laptop': return <Laptop className="h-10 w-10 text-primary" />;
-      case 'Monitor': return <Monitor className="h-10 w-10 text-primary" />;
-      case 'Keyboard':
-      case 'Mouse': return <MousePointer className="h-10 w-10 text-primary" />;
-      case 'Projector': return <Projector className="h-10 w-10 text-primary" />;
-      case 'Printer': return <Printer className="h-10 w-10 text-primary" />;
-      case 'Networking': return <Network className="h-10 w-10 text-primary" />;
-      case 'UPS': return <Power className="h-10 w-10 text-primary" />;
-      default: return <Box className="h-10 w-10 text-primary" />;
-    }
+    const catLower = category.toLowerCase();
+    if (catLower.includes('laptop')) return <Laptop className="h-10 w-10 text-primary" />;
+    if (catLower.includes('monitor')) return <Monitor className="h-10 w-10 text-primary" />;
+    if (catLower.includes('keyboard') || catLower.includes('mouse')) return <MousePointer className="h-10 w-10 text-primary" />;
+    if (catLower.includes('projector')) return <Projector className="h-10 w-10 text-primary" />;
+    if (catLower.includes('printer')) return <Printer className="h-10 w-10 text-primary" />;
+    if (catLower.includes('network') || catLower.includes('wifi') || catLower.includes('router')) return <Network className="h-10 w-10 text-primary" />;
+    if (catLower.includes('ups') || catLower.includes('power')) return <Power className="h-10 w-10 text-primary" />;
+    return <Box className="h-10 w-10 text-primary" />;
   };
 
   const getCartItem = (assetId: string) => cart.find(c => c.asset.assetId === assetId);
@@ -99,7 +112,6 @@ export default function AssetCatalogue() {
     if (!user || cart.length === 0 || !purpose || !location || !borrowDate || !returnDate) return;
 
     try {
-      // 1. Tambah fallback `|| []` kalau database requests kosong
       const requests = (await Storage.getRequests()) || []; 
       const requestId = `REQ-${Date.now()}`;
 
@@ -107,7 +119,6 @@ export default function AssetCatalogue() {
       cart.forEach((cartItem, index) => {
         for (let q = 0; q < cartItem.quantity; q++) {
           items.push({
-            // 2. Tambah index supaya ID betul-betul unik jika loop terlalu laju
             itemId: `ITEM-${Date.now()}-${cartItem.asset.assetId}-${index}-${q}`,
             requestId,
             assetId: cartItem.asset.assetId,
@@ -125,7 +136,7 @@ export default function AssetCatalogue() {
         requestId,
         userId: user.uid,
         userName: user.name,
-        userDept: user.department || '', // 3. Fallback kalau department kosong
+        userDept: user.department || '', 
         purpose,
         location: location, 
         requestDate: new Date().toISOString().split('T')[0],
@@ -151,7 +162,6 @@ export default function AssetCatalogue() {
       setBorrowDate('');
       setReturnDate('');
     } catch (error) {
-      // 4. PRINT ERROR SEBENAR KE CONSOLE UNTUK DEBUG
       console.error("DEBUG ERROR SUBMIT:", error); 
       toast({ variant: "destructive", title: "Error", description: "Failed to submit request. Check console!" });
     }
@@ -159,13 +169,14 @@ export default function AssetCatalogue() {
 
   return (
     <div className="space-y-6">
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary">Asset Catalogue</h1>
           <p className="text-muted-foreground">Browse and request available IT equipment.</p>
         </div>
-        <div className="flex gap-3">
-          <div className="relative w-full md:w-80">
+        <div className="flex gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search assets..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
@@ -180,6 +191,30 @@ export default function AssetCatalogue() {
         </div>
       </div>
 
+      {/* ─── BARU: RUANGAN FILTERS CATEGORY BADGES (MOBILE FRIENDLY SCROLLABLE) ─── */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide md:mx-0 md:px-0">
+        <Button 
+          variant={activeCategory === 'all' ? 'default' : 'outline'} 
+          size="sm" 
+          className="rounded-full text-xs font-medium"
+          onClick={() => setActiveCategory('all')}
+        >
+          All Equipment
+        </Button>
+        {categories.map((cat) => (
+          <Button
+            key={cat.id}
+            variant={activeCategory === cat.slug ? 'default' : 'outline'}
+            size="sm"
+            className="rounded-full text-xs font-medium whitespace-nowrap"
+            onClick={() => setActiveCategory(cat.slug)}
+          >
+            {cat.name}
+          </Button>
+        ))}
+      </div>
+
+      {/* ASSET CARDS GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredAssets.map((asset) => {
           const cartItem = getCartItem(asset.assetId);
@@ -240,7 +275,7 @@ export default function AssetCatalogue() {
       {filteredAssets.length === 0 && (
         <div className="text-center py-20 bg-muted/30 rounded-xl border-2 border-dashed">
           <Box className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-          <p className="text-lg font-medium text-muted-foreground">No assets found.</p>
+          <p className="text-lg font-medium text-muted-foreground">No assets found in this category.</p>
         </div>
       )}
 
@@ -288,7 +323,6 @@ export default function AssetCatalogue() {
               <Textarea placeholder="Why do you need this equipment?" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
             </div>
 
-            {/* INPUT BARU: TEMPAT DIGUNAKAN */}
             <div className="grid gap-2">
               <Label>Tempat Digunakan</Label>
               <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={location} onChange={(e) => setLocation(e.target.value)} />
@@ -308,7 +342,6 @@ export default function AssetCatalogue() {
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setCartOpen(false)}>Cancel</Button>
-            {/* Tambah location ke dalam disabled logic supaya form tak boleh submit selagi kosong */}
             <Button onClick={handleSubmitRequest} disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0}>
               Submit Request ({totalItems} unit(s))
             </Button>

@@ -86,3 +86,9 @@ model BorrowRequestItem {
   asset                Asset         @relation(fields: [assetId], references: [assetId])
 }
 
+model AssetCategory {
+  id        String   @id
+  name      String   @unique
+  slug      String
+  addedDate String
+}

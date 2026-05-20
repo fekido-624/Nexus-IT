@@ -1,36 +1,36 @@
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
-import { Storage, Asset, AssetUnit } from '@/lib/storage';
+import { Storage, Asset, AssetUnit, AssetCategory } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-// Tambah Download icon di sini
-import { Plus, Pencil, Trash2, Search, Upload, Download, X, Tag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Upload, Download, X, Tag, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import React from 'react';
 
-const CATEGORIES = ['Laptop', 'Monitor', 'Keyboard', 'Mouse', 'Projector', 'Printer', 'Networking', 'UPS', 'Others'];
-
 export default function AssetManagement() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [units, setUnits] = useState<AssetUnit[]>([]);
+  const [categories, setCategories] = useState<AssetCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  // Dialog konfirmasi padam
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmType, setConfirmType] = useState<'asset' | 'unit'>('asset');
+  const [confirmType, setConfirmType] = useState<'asset' | 'unit' | 'category'>('asset');
   const [deleteTargetId, setDeleteTargetId] = useState('');
   const [deleteTargetUnit, setDeleteTargetUnit] = useState<AssetUnit | null>(null);
 
-  // Asset Dialog
+  // Asset Dialog State
   const [isAssetDialogOpen, setIsAssetDialogOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [category, setCategory] = useState('');
@@ -40,7 +40,7 @@ export default function AssetManagement() {
   const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState('');
 
-  // Unit Dialog
+  // Unit Dialog State
   const [isUnitDialogOpen, setIsUnitDialogOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [editingUnit, setEditingUnit] = useState<AssetUnit | null>(null);
@@ -48,9 +48,11 @@ export default function AssetManagement() {
   const [unitCondition, setUnitCondition] = useState<'good' | 'damaged' | 'lost'>('good');
   const [unitNotes, setUnitNotes] = useState('');
 
-  // Rujukan input fail tersembunyi untuk fungsi muat naik
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Category Manager Dialog State
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -59,28 +61,83 @@ export default function AssetManagement() {
 
   const loadAll = async () => {
     try {
-      const [a, u] = await Promise.all([Storage.getAssets(), Storage.getUnits()]);
+      const [a, u, c] = await Promise.all([
+        Storage.getAssets(), 
+        Storage.getUnits(),
+        Storage.getCategories()
+      ]);
       setAssets(a);
       setUnits(u);
+      setCategories(c);
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memuatkan data dari sistem." });
     }
   };
 
-// ─── FUNGSI BULK UPLOAD (KEMAS KINI) ───────────────────────────────────────
+  // ─── 📁 LOGIK PENGURUSAN KATEGORI ───────────────────────────────────
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    
+    // Kemas kini format tulisan (Huruf besar pada huruf pertama)
+    const formattedName = newCategoryName.trim().charAt(0).toUpperCase() + newCategoryName.trim().slice(1);
+    
+    if (categories.some(c => c.name.toLowerCase() === formattedName.toLowerCase())) {
+      toast({ variant: "destructive", title: "Ralat", description: "Kategori ini sudah pun wujud." });
+      return;
+    }
+
+    try {
+      const newCat: AssetCategory = {
+        id: `cat-${Date.now()}`,
+        name: formattedName,
+        slug: formattedName.toLowerCase().replace(/\s+/g, '-'),
+        addedDate: new Date().toISOString().split('T')[0]
+      };
+
+      const updatedCats = [...categories, newCat];
+      await Storage.saveCategories(updatedCats);
+      setCategories(updatedCats);
+      setNewCategoryName('');
+      toast({ title: "Berjaya", description: `Kategori "${formattedName}" telah didaftarkan.` });
+    } catch {
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan kategori baru." });
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string, catName: string) => {
+    // Sekat jika kategori sedang digunakan oleh mana-mana aset aktif
+    const isBeingUsed = assets.some(a => a.category.toLowerCase() === catName.toLowerCase());
+    if (isBeingUsed) {
+      toast({ 
+        variant: "destructive", 
+        title: "Tidak Boleh Dipadam", 
+        description: `Kategori "${catName}" gagal dipadam kerana masih mempunyai senarai aset terikat.` 
+      });
+      return;
+    }
+
+    try {
+      const updatedCats = categories.filter(c => c.id !== catId);
+      await Storage.saveCategories(updatedCats);
+      setCategories(updatedCats);
+      toast({ variant: "destructive", title: "Dipadam", description: `Kategori "${catName}" dikeluarkan.` });
+    } catch {
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memadam kategori." });
+    }
+  };
+
+  // ─── 📊 FUNGSI BULK UPLOAD CSV (KEMAS KINI TOTAL ANTI-CRASH) ─────────
 
   const handleDownloadTemplate = () => {
-    // Header baru: Tiada lagi quantity, digantikan dengan serialNumbers
     const headers = "category,brand,model,description,serialNumbers\n";
-    
-    // Contoh data (Perhatikan penggunaan simbol ';' untuk memisahkan serial number)
-    const sample = "Laptop,Dell,Latitude 5420,Laptop pejabat,SN-001;SN-002;SN-003\nMonitor,HP,24f,Monitor 24 inci,TAG-MON-11;TAG-MON-12\n";
+    const sample = "Laptop,Dell,Latitude 5420,Laptop pejabat,SN-DELL-01;SN-DELL-02\nMonitor,HP,24f,Monitor 24 inci,TAG-HP-99\n";
     
     const blob = new Blob([headers + sample], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Template_Upload_Aset_KemasKini.csv';
+    a.download = 'Template_Upload_Aset.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -108,99 +165,137 @@ export default function AssetManagement() {
       }
 
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const newAssets: Asset[] = [];
-      const newUnits: AssetUnit[] = [];
       const todayStr = new Date().toISOString().split('T')[0];
       const timeStr = new Date().toISOString();
 
-      let successCount = 0;
+      try {
+        let currentAssets = [...await Storage.getAssets()];
+        let currentUnits = [...await Storage.getUnits()];
+        let currentCategories = [...await Storage.getCategories()];
 
-      for (let i = 1; i < lines.length; i++) {
-        // Abaikan koma yang mungkin ada di dalam description buat sementara
-        const currentLine = lines[i].split(',').map(val => val.trim());
-        
-        if (currentLine.length >= 2) {
+        let newAssetsCount = 0;
+        let updatedAssetsCount = 0;
+        let newUnitsCount = 0;
+        let newCategoriesCount = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          const currentLine = lines[i].split(',').map(val => val.trim());
+          if (currentLine.length < 2) continue;
+
+          const rawCategory = currentLine[headers.indexOf('category')] || 'Others';
+          const categoryName = rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();
           const brand = currentLine[headers.indexOf('brand')] || '-';
           const model = currentLine[headers.indexOf('model')] || '-';
-          const assetId = `ASSET-BULK-${Date.now()}-${i}`;
+          const description = currentLine[headers.indexOf('description')] || '';
           
-          // 1. Dapatkan senarai Serial Number dari Excel dan pecahkan guna simbol ';'
           const serialsRaw = currentLine[headers.indexOf('serialnumbers')] || '';
           const serialsList = serialsRaw.split(';').map(s => s.trim()).filter(s => s !== '');
-          const qty = serialsList.length; // Kuantiti automatik ikut bilangan SN
+          const incomingQty = serialsList.length;
 
-          if (qty > 0) {
-            // 2. Cipta Profil Aset Induk
-            newAssets.push({
-              assetId,
-              category: currentLine[headers.indexOf('category')] || 'Others',
-              brand,
-              model,
-              assetTag: `${brand}-${model}`.replace(/\s+/g, '-').toUpperCase(),
-              description: currentLine[headers.indexOf('description')] || '',
-              imageUrl: '', 
-              status: 'available',
-              availableQty: qty,
-              addedDate: todayStr,
-              lastUpdated: timeStr
-            });
-
-            // 3. Cipta Unit mengikut Serial Number SEBENAR yang ditaip
-            serialsList.forEach((serial, index) => {
-              newUnits.push({
-                unitId: `UNIT-BULK-${Date.now()}-${i}-${index}`,
-                assetId: assetId,
-                assetName: `${brand} ${model}`,
-                assetTag: serial, // <--- Menggunakan Serial Number sebenar
-                brand: brand,
-                model: model,
-                category: currentLine[headers.indexOf('category')] || 'Others',
-                condition: 'good',
-                currentStatus: 'available',
-                currentBorrowerId: '',
-                currentBorrowerName: '',
-                currentRequestId: '',
-                borrowHistory: '[]',
-                notes: 'Muat naik pukal',
+          if (incomingQty > 0) {
+            // 1. Semak & cipta kategori baru secara automatik jika tiada
+            if (!currentCategories.some(c => c.name.toLowerCase() === categoryName.toLowerCase())) {
+              currentCategories.push({
+                id: `cat-${Date.now()}-${Math.random().toString().slice(2, 5)}`,
+                name: categoryName,
+                slug: categoryName.toLowerCase().replace(/\s+/g, '-'),
                 addedDate: todayStr
               });
+              newCategoriesCount++;
+            }
+
+            // 2. Cari penyepaduan aset sedia ada
+            const existingAssetIdx = currentAssets.findIndex(
+              a => a.category.toLowerCase() === categoryName.toLowerCase() &&
+                   a.brand.toLowerCase() === brand.toLowerCase() &&
+                   a.model.toLowerCase() === model.toLowerCase()
+            );
+
+            let targetAssetId = '';
+
+            if (existingAssetIdx !== -1) {
+              const existingAsset = currentAssets[existingAssetIdx];
+              targetAssetId = existingAsset.assetId;
+              
+              currentAssets[existingAssetIdx] = {
+                ...existingAsset,
+                description: description || existingAsset.description,
+                availableQty: (existingAsset.availableQty || 0) + incomingQty,
+                lastUpdated: timeStr
+              };
+              updatedAssetsCount++;
+            } else {
+              targetAssetId = `a-${Date.now()}-${i}`;
+              // Solusi unik: Letakkan timetag di assetTag baru untuk jaminan bebas ralat P2002 Prisma
+              const uniqTag = `${brand}-${model}-${Date.now().toString().slice(-3)}-${i}`.replace(/\s+/g, '-').toUpperCase();
+              
+              currentAssets.push({
+                assetId: targetAssetId,
+                category: categoryName,
+                brand,
+                model,
+                assetTag: uniqTag,
+                description,
+                imageUrl: '',
+                status: 'available',
+                availableQty: incomingQty,
+                addedDate: todayStr,
+                lastUpdated: timeStr
+              });
+              newAssetsCount++;
+            }
+
+            // 3. Masukkan senarai Kod Siri baharu
+            serialsList.forEach((serial, index) => {
+              if (!currentUnits.some(u => u.assetTag.toLowerCase() === serial.toLowerCase())) {
+                currentUnits.push({
+                  unitId: `unit-${Date.now()}-${i}-${index}`,
+                  assetId: targetAssetId,
+                  assetName: `${brand} ${model}`,
+                  assetTag: serial,
+                  brand,
+                  model,
+                  category: categoryName,
+                  condition: 'good',
+                  currentStatus: 'available',
+                  currentBorrowerId: '',
+                  currentBorrowerName: '',
+                  currentRequestId: '',
+                  borrowHistory: '[]',
+                  notes: 'Muat naik pukal (CSV)',
+                  addedDate: todayStr
+                });
+                newUnitsCount++;
+              }
             });
-            successCount++;
           }
         }
-      }
 
-      if (newAssets.length > 0) {
-        try {
-          const currentAssets = await Storage.getAssets();
-          const currentUnitsObj = await Storage.getUnits();
-          
-          await Storage.saveAssets([...currentAssets, ...newAssets]);
-          await Storage.saveUnits([...currentUnitsObj, ...newUnits]);
-          
-          toast({ 
-            title: "Muat Naik Berjaya", 
-            description: `${successCount} jenis aset dan ${newUnits.length} unit telah ditambah.` 
-          });
-          
-          if (fileInputRef.current) fileInputRef.current.value = '';
-          await loadAll();
-        } catch (error) {
-          toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan aset pukal." });
-        }
-      } else {
-        toast({ variant: "destructive", title: "Tiada Data Aset", description: "Sila pastikan kolum 'serialNumbers' telah diisi dengan betul." });
+        // Simpan keseluruhan data serentak ke backend database
+        await Storage.saveCategories(currentCategories);
+        await Storage.saveAssets(currentAssets);
+        await Storage.saveUnits(currentUnits);
+
+        toast({ 
+          title: "Muat Naik Berjaya", 
+          description: `Kategori baru: ${newCategoriesCount} | Daftar aset: ${newAssetsCount} | Auto-Update: ${updatedAssetsCount} | Unit siri ditambah: ${newUnitsCount}.` 
+        });
+
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        await loadAll();
+
+      } catch (error) {
+        toast({ variant: "destructive", title: "Ralat", description: "Gagal memproses fail muat naik pukal." });
       }
     };
-    
     reader.readAsText(file);
   };
 
-  // ─── ASSET HANDLERS ───────────────────────────────────────────
+  // ─── ASSET MANUAL HANDLERS ───────────────────────────────────────────
 
   const handleSaveAsset = async () => {
     if (!category || !brand || !model) {
-      toast({ variant: "destructive", title: "Error", description: "Please fill in all mandatory fields." });
+      toast({ variant: "destructive", title: "Ralat", description: "Sila isi semua ruangan mandatori." });
       return;
     }
     try {
@@ -215,14 +310,13 @@ export default function AssetManagement() {
         );
         await Storage.saveAssets(updatedAssets);
 
-        // Sync unit assetName
         const updatedUnits = currentUnits.map(u =>
           u.assetId === editingAsset.assetId
             ? { ...u, brand, model, category, assetName: `${brand} ${model}` }
             : u
         );
         await Storage.saveUnits(updatedUnits);
-        toast({ title: "Asset Updated", description: `${brand} ${model} has been updated.` });
+        toast({ title: "Berjaya Dikemaskini", description: `${brand} ${model} telah dikemas kini.` });
       } else {
         const assetId = `a-${Date.now()}`;
         const newAsset: Asset = {
@@ -239,23 +333,21 @@ export default function AssetManagement() {
           lastUpdated: new Date().toISOString().split('T')[0]
         };
         await Storage.saveAssets([...currentAssets, newAsset]);
-        toast({ title: "Asset Registered", description: `${brand} ${model} registered. Now add units/serial numbers.` });
+        toast({ title: "Aset Didaftarkan", description: `${brand} ${model} berjaya didaftar. Sila masukkan nombor siri unit sekarang.` });
       }
 
       await loadAll();
       resetAssetForm();
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save asset" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan rekod aset." });
     }
   };
-
 
   const handleDeleteAsset = async (assetId: string) => {
     try {
       const currentUnits = await Storage.getUnits();
-      const hasBorrowed = currentUnits.some(u => u.assetId === assetId && u.currentStatus === 'borrowed');
-      if (hasBorrowed) {
-        toast({ variant: "destructive", title: "Cannot Delete", description: "Asset has units currently being borrowed." });
+      if (currentUnits.some(u => u.assetId === assetId && u.currentStatus === 'borrowed')) {
+        toast({ variant: "destructive", title: "Gagal Padam", description: "Aset ini mempunyai unit yang masih aktif dipinjam." });
         return;
       }
       const currentAssets = await Storage.getAssets();
@@ -265,13 +357,11 @@ export default function AssetManagement() {
       await Storage.saveAssets(updatedAssets);
       await Storage.saveUnits(updatedUnits);
 
-      // Update state terus, jangan tunggu loadAll
       setAssets(updatedAssets);
       setUnits(updatedUnits);
-
-      toast({ variant: "destructive", title: "Asset Removed", description: "Asset and all its units have been deleted." });
+      toast({ variant: "destructive", title: "Aset Dibuang", description: "Profil aset dan kesemua unit di bawahnya telah dipadam." });
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to delete asset" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memadam aset." });
     }
   };
 
@@ -314,7 +404,7 @@ export default function AssetManagement() {
     setIsAssetDialogOpen(true);
   };
 
-  // ─── UNIT HANDLERS ────────────────────────────────────────────
+  // ─── UNIT MANUAL HANDLERS ───────────────────────────────────────
 
   const handleOpenAddUnit = (asset: Asset) => {
     setSelectedAsset(asset);
@@ -336,7 +426,7 @@ export default function AssetManagement() {
 
   const handleSaveUnit = async () => {
     if (!unitSerial || !selectedAsset) {
-      toast({ variant: "destructive", title: "Error", description: "Please enter a serial number." });
+      toast({ variant: "destructive", title: "Ralat", description: "Sila masukkan nombor siri/tag aset." });
       return;
     }
     try {
@@ -350,7 +440,7 @@ export default function AssetManagement() {
             : u
         );
         await Storage.saveUnits(updatedUnits);
-        toast({ title: "Unit Updated", description: `Serial ${unitSerial} has been updated.` });
+        toast({ title: "Unit Dikemaskini", description: `Serial ${unitSerial} berjaya disimpan.` });
       } else {
         const newUnit: AssetUnit = {
           unitId: `unit-${Date.now()}`,
@@ -372,26 +462,25 @@ export default function AssetManagement() {
 
         await Storage.saveUnits([...currentUnits, newUnit]);
 
-        // Update asset availableQty
         const updatedAssets = currentAssets.map(a =>
           a.assetId === selectedAsset.assetId
             ? { ...a, availableQty: (a.availableQty || 0) + 1, status: 'available' as const }
             : a
         );
         await Storage.saveAssets(updatedAssets);
-        toast({ title: "Unit Added", description: `Serial ${unitSerial} added under ${selectedAsset.brand} ${selectedAsset.model}.` });
+        toast({ title: "Unit Ditambah", description: `Serial ${unitSerial} berjaya diletakkan di bawah model ${selectedAsset.brand}.` });
       }
 
       await loadAll();
       resetUnitForm();
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save unit" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan unit." });
     }
   };
 
   const handleDeleteUnit = async (unit: AssetUnit) => {
     if (unit.currentStatus === 'borrowed') {
-      toast({ variant: "destructive", title: "Cannot Delete", description: "Unit is currently being borrowed." });
+      toast({ variant: "destructive", title: "Gagal", description: "Unit ini sedang aktif dipinjam." });
       return;
     }
     try {
@@ -407,9 +496,9 @@ export default function AssetManagement() {
       );
       await Storage.saveAssets(updatedAssets);
       await loadAll();
-      toast({ variant: "destructive", title: "Unit Removed", description: `Serial ${unit.assetTag} has been deleted.` });
+      toast({ variant: "destructive", title: "Unit Dipadam", description: `Serial ${unit.assetTag} dibuang.` });
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to delete unit" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal mengosongkan unit." });
     }
   };
 
@@ -427,13 +516,14 @@ export default function AssetManagement() {
       (a.brand || '').toLowerCase().includes(term) ||
       (a.model || '').toLowerCase().includes(term) ||
       (a.category || '').toLowerCase().includes(term);
-    const matchesCategory = selectedCategory === 'all' || a.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || a.category.toLowerCase() === selectedCategory.toLowerCase();
     return matchesSearch && matchesCategory;
   });
 
-  const groupedAssets = CATEGORIES.reduce((acc, cat) => {
-    const catAssets = filteredAssets.filter(a => a.category === cat);
-    if (catAssets.length > 0) acc[cat] = catAssets;
+  // Susun pengelompokan accordion secara dinamik berdasarkan senarai kategori pangkalan data terkini
+  const groupedAssets = categories.reduce((acc, cat) => {
+    const catAssets = filteredAssets.filter(a => a.category.toLowerCase() === cat.name.toLowerCase());
+    if (catAssets.length > 0) acc[cat.name] = catAssets;
     return acc;
   }, {} as Record<string, Asset[]>);
 
@@ -448,38 +538,32 @@ export default function AssetManagement() {
     }
   };
 
-  // ─── RENDER ───────────────────────────────────────────────────
-
   return (
     <div className="space-y-6">
-      {/* ─── HEADER BARU DENGAN BUTANG UPLOAD CSV ─── */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Asset Management</h1>
           <p className="text-sm text-muted-foreground">Register assets and manage individual unit serial numbers.</p>
         </div>
         <div className="flex flex-wrap w-full md:w-auto gap-2">
-          {/* Input fail tersembunyi yang akan dipanggil oleh butang Upload */}
-          <input 
-            type="file" 
-            accept=".csv" 
-            ref={fileInputRef} 
-            className="hidden" 
-            onChange={handleFileUpload} 
-          />
+          <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+          
           <Button variant="outline" className="flex-1 md:flex-none gap-2" onClick={handleDownloadTemplate}>
             <Download className="h-4 w-4" /> Template CSV
           </Button>
+          
           <Button variant="outline" className="flex-1 md:flex-none gap-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4" /> Upload CSV
           </Button>
+          
           <Button className="w-full md:w-auto gap-2" onClick={() => setIsAssetDialogOpen(true)}>
             <Plus className="h-4 w-4" /> Register New Asset
           </Button>
         </div>
       </div>
 
-      {/* Search & Filter */}
+      {/* SEARCH & FILTERS */}
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-3">
@@ -492,7 +576,7 @@ export default function AssetManagement() {
                 <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                  {categories.map(cat => <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -500,18 +584,18 @@ export default function AssetManagement() {
         </CardContent>
       </Card>
 
-      {/* Asset List */}
+      {/* ACCORDION DATA JADUAL */}
       <Card className="shadow-md">
         <CardContent className="p-0">
           {Object.keys(groupedAssets).length === 0 ? (
             <div className="h-32 flex items-center justify-center text-muted-foreground">No assets found.</div>
           ) : (
             <Accordion type="multiple" className="w-full">
-              {Object.entries(groupedAssets).map(([cat, catAssets]) => (
-                <AccordionItem key={cat} value={cat} className="border-b last:border-b-0">
+              {Object.entries(groupedAssets).map(([catName, catAssets]) => (
+                <AccordionItem key={catName} value={catName} className="border-b last:border-b-0">
                   <AccordionTrigger className="hover:no-underline px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold text-sm">{cat}</span>
+                      <span className="font-semibold text-sm">{catName}</span>
                       <Badge variant="outline" className="text-xs">{catAssets.length}</Badge>
                     </div>
                   </AccordionTrigger>
@@ -520,12 +604,9 @@ export default function AssetManagement() {
                       const assetUnits = getUnitsByAsset(asset.assetId);
                       return (
                         <div key={asset.assetId} className="border-t px-6 py-4 space-y-3">
-                          {/* Asset Header */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              {asset.imageUrl && (
-                                <img src={asset.imageUrl} alt={asset.model} className="w-10 h-10 object-cover rounded" />
-                              )}
+                              {asset.imageUrl && <img src={asset.imageUrl} alt={asset.model} className="w-10 h-10 object-cover rounded" />}
                               <div>
                                 <p className="font-semibold text-sm">{asset.brand} {asset.model}</p>
                                 <p className="text-[10px] text-muted-foreground">{asset.description}</p>
@@ -545,7 +626,6 @@ export default function AssetManagement() {
                             </div>
                           </div>
 
-                          {/* Units Table */}
                           {assetUnits.length > 0 && (
                             <div className="rounded-lg border overflow-hidden">
                               <Table>
@@ -563,20 +643,12 @@ export default function AssetManagement() {
                                     <TableRow key={unit.unitId}>
                                       <TableCell className="font-mono text-xs font-bold">{unit.assetTag}</TableCell>
                                       <TableCell>{getStatusBadge(unit.currentStatus)}</TableCell>
-                                      <TableCell>
-                                        <Badge variant="outline" className="text-[10px] capitalize">{unit.condition}</Badge>
-                                      </TableCell>
-                                      <TableCell className="text-xs">
-                                        {unit.currentBorrowerName || <span className="text-muted-foreground italic">—</span>}
-                                      </TableCell>
+                                      <TableCell><Badge variant="outline" className="text-[10px] capitalize">{unit.condition}</Badge></TableCell>
+                                      <TableCell className="text-xs">{unit.currentBorrowerName || <span className="text-muted-foreground italic">—</span>}</TableCell>
                                       <TableCell className="text-right">
                                         <div className="flex justify-end gap-1">
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditUnit(asset, unit)}>
-                                            <Pencil className="h-3 w-3" />
-                                          </Button>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setConfirmType('unit'); setDeleteTargetUnit(unit); setConfirmOpen(true); }}>
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditUnit(asset, unit)}><Pencil className="h-3 w-3" /></Button>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setConfirmType('unit'); setDeleteTargetUnit(unit); setConfirmOpen(true); }}><Trash2 className="h-3 w-3" /></Button>
                                         </div>
                                       </TableCell>
                                     </TableRow>
@@ -584,10 +656,6 @@ export default function AssetManagement() {
                                 </TableBody>
                               </Table>
                             </div>
-                          )}
-
-                          {assetUnits.length === 0 && (
-                            <p className="text-xs text-muted-foreground italic text-center py-2">No units registered yet. Click "Add Unit" to add serial numbers.</p>
                           )}
                         </div>
                       );
@@ -600,69 +668,85 @@ export default function AssetManagement() {
         </CardContent>
       </Card>
 
-      {/* Asset Dialog */}
+      {/* ASSET DIALOG */}
       <Dialog open={isAssetDialogOpen} onOpenChange={(open) => { if (!open) resetAssetForm(); setIsAssetDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] md:max-w-md rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{editingAsset ? 'Edit Asset' : 'Register New Asset'}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingAsset ? 'Edit Asset' : 'Register New Asset'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label>Asset Type (Category)</Label>
+              <div className="flex justify-between items-center">
+                <Label>Asset Type (Category)</Label>
+                {/* TOMBOL MODAL URUS CUSTOM CATEGORY */}
+                <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs gap-1" onClick={() => setIsCategoryManagerOpen(true)}>
+                  <Settings2 className="h-3 w-3" /> Urus Kategori
+                </Button>
+              </div>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Pilih kategori..." /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                  {categories.map(cat => <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Brand</Label>
-                <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Lenovo" />
-              </div>
-              <div className="grid gap-2">
-                <Label>Model</Label>
-                <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Thinkpad P15" />
-              </div>
+              <div className="grid gap-2"><Label>Brand</Label><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Lenovo" /></div>
+              <div className="grid gap-2"><Label>Model</Label><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Thinkpad P15" /></div>
             </div>
-            <div className="grid gap-2">
-              <Label>Specification</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="RAM, Processor, Storage, etc." />
-            </div>
+            <div className="grid gap-2"><Label>Specification</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="RAM, Processor, Storage, dll." /></div>
             <div className="grid gap-2">
               <Label>Asset Image</Label>
               <div className="flex flex-col gap-2">
                 {imagePreview && (
                   <div className="relative w-full h-40 bg-muted rounded-lg overflow-hidden">
                     <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-                    <Button size="icon" variant="destructive" className="absolute top-2 right-2 h-8 w-8" onClick={() => { setImageUrl(''); setImagePreview(''); }}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <Button size="icon" variant="destructive" className="absolute top-2 right-2 h-8 w-8" onClick={() => { setImageUrl(''); setImagePreview(''); }}><X className="h-4 w-4" /></Button>
                   </div>
                 )}
                 <input id="image" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                <Button type="button" variant="outline" className="w-full gap-2" onClick={() => document.getElementById('image')?.click()}>
-                  <Upload className="h-4 w-4" /> Upload Image
-                </Button>
+                <Button type="button" variant="outline" className="w-full gap-2" onClick={() => document.getElementById('image')?.click()}><Upload className="h-4 w-4" /> Upload Image</Button>
               </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={resetAssetForm}>Cancel</Button>
-            <Button onClick={handleSaveAsset} disabled={!category || !brand || !model}>
-              {editingAsset ? 'Update' : 'Register'}
-            </Button>
+            <Button onClick={handleSaveAsset} disabled={!category || !brand || !model}>{editingAsset ? 'Update' : 'Register'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Unit Dialog */}
+      {/* DIALOG DINAMIK URUS KATEGORI (MANAGE CUSTOM CATEGORIES) */}
+      <Dialog open={isCategoryManagerOpen} onOpenChange={setIsCategoryManagerOpen}>
+        <DialogContent className="max-w-[95vw] md:max-w-sm rounded-xl">
+          <DialogHeader><DialogTitle>Pengurusan Kategori Aset</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex gap-2">
+              <Input placeholder="Nama kategori baru..." value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+              <Button size="sm" onClick={handleAddCategory}>Tambah</Button>
+            </div>
+            <Label className="text-xs text-muted-foreground uppercase">Senarai Kategori Aktif</Label>
+            <div className="border rounded-lg max-h-48 overflow-y-auto divide-y">
+              {categories.length === 0 ? (
+                <p className="text-xs text-center text-muted-foreground py-4">Tiada kategori dikesan.</p>
+              ) : (
+                categories.map(cat => (
+                  <div key={cat.id} className="flex justify-between items-center p-2 px-3 text-sm">
+                    <span>{cat.name}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:bg-red-50" onClick={() => handleDeleteCategory(cat.id, cat.name)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" size="sm" onClick={() => setIsCategoryManagerOpen(false)}>Selesai</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* UNIT DIALOG */}
       <Dialog open={isUnitDialogOpen} onOpenChange={(open) => { if (!open) resetUnitForm(); setIsUnitDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] md:max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{editingUnit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingUnit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="bg-muted/50 p-3 rounded-lg text-sm">
               <p><strong>Asset:</strong> {selectedAsset?.brand} {selectedAsset?.model}</p>
@@ -672,12 +756,7 @@ export default function AssetManagement() {
               <Label>Serial Number / Asset Tag</Label>
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  value={unitSerial}
-                  onChange={(e) => setUnitSerial(e.target.value)}
-                  placeholder="SN-001 / HF-001"
-                />
+                <Input className="pl-9" value={unitSerial} onChange={(e) => setUnitSerial(e.target.value)} placeholder="SN-001 / HF-001" />
               </div>
             </div>
             <div className="grid gap-2">
@@ -691,31 +770,22 @@ export default function AssetManagement() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>Notes (Optional)</Label>
-              <Textarea value={unitNotes} onChange={(e) => setUnitNotes(e.target.value)} placeholder="Any remarks about this unit..." />
-            </div>
+            <div className="grid gap-2"><Label>Notes (Optional)</Label><Textarea value={unitNotes} onChange={(e) => setUnitNotes(e.target.value)} placeholder="Any remarks..." /></div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={resetUnitForm}>Cancel</Button>
-            <Button onClick={handleSaveUnit} disabled={!unitSerial}>
-              {editingUnit ? 'Update Unit' : 'Add Unit'}
-            </Button>
+            <Button onClick={handleSaveUnit} disabled={!unitSerial}>{editingUnit ? 'Update Unit' : 'Add Unit'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={confirmType === 'asset' ? "Delete Asset?" : "Delete Unit?"}
-        description={
-          confirmType === 'asset'
-            ? "This will permanently delete the asset and all its units. This action cannot be undone."
-            : `This will permanently remove unit ${deleteTargetUnit?.assetTag}. This action cannot be undone.`
-        }
+        description={confirmType === 'asset' ? "This will permanently delete the asset and all its units." : `This will permanently remove unit ${deleteTargetUnit?.assetTag}.`}
         onConfirm={handleConfirmDelete}
       />
-  
     </div>
   );
 }
