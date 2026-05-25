@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -7,16 +6,28 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { 
   Package, 
-  Layers, 
   ArrowUpRight, 
   Clock, 
   AlertTriangle, 
   CheckCircle2, 
   XCircle,
-  ShieldAlert,
   CalendarClock
 } from 'lucide-react';
-import { format, addDays, isBefore } from 'date-fns';
+import { addDays } from 'date-fns';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { 
+  Table, 
+  TableHeader, 
+  TableBody, 
+  TableHead, 
+  TableRow, 
+  TableCell 
+} from '@/components/ui/table';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -31,8 +42,8 @@ export default function AdminDashboard() {
   });
   
   const [recentRequests, setRecentRequests] = useState<BorrowRequest[]>([]);
-  const [zeroQtyAssets, setZeroQtyAssets] = useState<Asset[]>([]);
-  const [expiringUnits, setExpiringUnits] = useState<AssetUnit[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [damagedUnitsList, setDamagedUnitsList] = useState<AssetUnit[]>([]);
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -43,13 +54,13 @@ export default function AdminDashboard() {
 
         const todayStr = new Date().toISOString().split('T')[0];
         
-        const borrowed = units.filter(u => u.currentStatus === 'borrowed').length;
-        const pending = requests.filter(r => r.status === 'pending' || r.status === 'returning').length;
-        const good = units.filter(u => u.condition === 'good').length;
-        const damaged = units.filter(u => u.condition === 'damaged').length;
-        const lost = units.filter(u => u.condition === 'lost').length;
+        const borrowed = units.filter((u: AssetUnit) => u.currentStatus === 'borrowed').length;
+        const pending = requests.filter((r: BorrowRequest) => r.status === 'pending' || r.status === 'returning').length;
+        const good = units.filter((u: AssetUnit) => u.condition === 'good').length;
+        const damaged = units.filter((u: AssetUnit) => u.condition === 'damaged').length;
+        const lost = units.filter((u: AssetUnit) => u.condition === 'lost').length;
         
-        const overdue = requests.filter(r => 
+        const overdue = requests.filter((r: BorrowRequest) => 
           r.status === 'approved' && r.returnDate < todayStr
         ).length;
 
@@ -64,16 +75,8 @@ export default function AdminDashboard() {
           lostCount: lost,
         });
 
+        setDamagedUnitsList(units.filter((u: AssetUnit) => u.condition === 'damaged'));
         setRecentRequests(requests.slice(-5).reverse());
-        setZeroQtyAssets(assets.filter(a => a.availableQty === 0));
-
-        const today = new Date();
-        const thirtyDays = addDays(today, 30);
-        setExpiringUnits(units.filter(u => {
-          if (!u.purchaseDate) return false;
-          // In a real app we'd check actual warranty dates, but for now we use purchaseDate as proxy
-          return false; 
-        }));
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
       }
@@ -165,7 +168,10 @@ export default function AdminDashboard() {
                   <div key={req.requestId} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                     <div>
                       <p className="font-semibold text-sm">{req.userName}</p>
-                      <p className="text-xs text-muted-foreground">{req.assetName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {req.items?.[0]?.assetName || 'Tiada Perkakasan'}
+                        {req.items && req.items.length > 1 ? ` (+${req.items.length - 1} item lagi)` : ''}
+                      </p>
                     </div>
                     <div className="text-right">
                       {getStatusBadge(req.status, req.returnDate)}
@@ -184,8 +190,8 @@ export default function AdminDashboard() {
             <CardTitle>Inventory Health</CardTitle>
             <CardDescription>Status of physical units.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center gap-4">
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4 p-2 rounded-xl transition-colors">
               <div className="bg-green-100 p-2 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
               <div className="flex-1">
                 <p className="text-sm font-medium">Good Condition</p>
@@ -195,17 +201,27 @@ export default function AdminDashboard() {
               </div>
               <p className="text-sm font-bold">{stats.goodCount}</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-orange-100 p-2 rounded-lg"><AlertTriangle className="h-5 w-5 text-orange-600" /></div>
+
+            <div 
+              onClick={() => setIsDialogOpen(true)}
+              className="flex items-center gap-4 p-2 rounded-xl cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/20 border border-transparent hover:border-orange-200 transition-all group"
+            >
+              <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg group-hover:scale-105 transition-transform">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+              </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Damaged / Maintenance</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-orange-600 font-semibold transition-colors flex items-center gap-1">
+                  Damaged / Maintenance 
+                  <span className="text-xs font-normal text-muted-foreground group-hover:translate-x-0.5 transition-transform">→</span>
+                </p>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-orange-500" style={{ width: `${(stats.damagedCount / stats.totalUnits) * 100 || 0}%` }}></div>
                 </div>
               </div>
-              <p className="text-sm font-bold">{stats.damagedCount}</p>
+              <p className="text-sm font-bold text-orange-600">{stats.damagedCount}</p>
             </div>
-            <div className="flex items-center gap-4">
+
+            <div className="flex items-center gap-4 p-2 rounded-xl transition-colors">
               <div className="bg-red-100 p-2 rounded-lg"><XCircle className="h-5 w-5 text-red-600" /></div>
               <div className="flex-1">
                 <p className="text-sm font-medium">Lost / Unaccounted</p>
@@ -218,6 +234,53 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertTriangle className="h-5 w-5" /> Senarai Item Rosak / Penyelenggaraan
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="mt-4 border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-bold">No. Siri / Tag</TableHead>
+                  <TableHead className="font-bold">Nama Item</TableHead>
+                  <TableHead className="font-bold">Jenama / Model</TableHead>
+                  <TableHead className="font-bold">Nota / Catatan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {damagedUnitsList.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      Tiada rekod barangan rosak ditemui.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  damagedUnitsList.map((unit) => (
+                    <TableRow key={unit.unitId} className="hover:bg-muted/30">
+                      <TableCell className="font-mono text-xs text-red-600 font-semibold">
+                        {unit.assetTag || 'Tiada Tag'}
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">{unit.assetName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {unit.brand} {unit.model}
+                      </TableCell>
+                      <TableCell className="text-xs italic text-gray-500 max-w-[180px] truncate">
+                        {unit.notes || 'Tiada catatan kerosakan'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

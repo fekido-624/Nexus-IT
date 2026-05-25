@@ -20,8 +20,8 @@ interface CartItem {
 
 export default function AssetCatalogue() {
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [categories, setCategories] = useState<AssetCategory[]>([]); // STATE BARU: Simpan data kategori dari DB
-  const [activeCategory, setActiveCategory] = useState('all');       // STATE BARU: Simpan kategori terpilih
+  const [categories, setCategories] = useState<AssetCategory[]>([]); 
+  const [activeCategory, setActiveCategory] = useState('all');      
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -36,7 +36,6 @@ export default function AssetCatalogue() {
   useEffect(() => {
     async function loadData() {
       await Storage.init();
-      // Ambil data aset dan kategori secara serentak (Parallel fetching)
       const [assetData, categoryData] = await Promise.all([
         Storage.getAssets(),
         Storage.getCategories()
@@ -47,31 +46,34 @@ export default function AssetCatalogue() {
     loadData();
   }, []);
 
-  // ─── TIKET PENAPISAN KATEGORI & CARIAN ─────────────────────────────
+// ─── TIKET PENAPISAN KATEGORI & CARIAN (VERSI BRUTAL & KALIS TYPO) ─────────────────────────────
   const filteredAssets = assets.filter(asset => {
+    // Fungsi kecilan untuk buang segala jarak, sempang, dan huruf besar/kecil
+    const bersihkanString = (str: string) => (str || '').toLowerCase().replace(/[\s_-]/g, '').trim();
+
     const matchesSearch = 
       asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.category.toLowerCase().includes(searchTerm.toLowerCase());
       
-    // Penapisan kategori dinamik mengikut pilihan user
+    // Padankan kategori menggunakan fungsi pembersihan (Kalis sempang vs jarak)
     const matchesCategory = 
       activeCategory === 'all' || 
-      asset.category.toLowerCase() === activeCategory.toLowerCase();
+      bersihkanString(asset.category) === bersihkanString(activeCategory);
 
     return matchesSearch && matchesCategory;
   });
 
   const getCategoryIcon = (category: string) => {
     const catLower = category.toLowerCase();
-    if (catLower.includes('laptop')) return <Laptop className="h-10 w-10 text-primary" />;
-    if (catLower.includes('monitor')) return <Monitor className="h-10 w-10 text-primary" />;
-    if (catLower.includes('keyboard') || catLower.includes('mouse')) return <MousePointer className="h-10 w-10 text-primary" />;
-    if (catLower.includes('projector')) return <Projector className="h-10 w-10 text-primary" />;
-    if (catLower.includes('printer')) return <Printer className="h-10 w-10 text-primary" />;
-    if (catLower.includes('network') || catLower.includes('wifi') || catLower.includes('router')) return <Network className="h-10 w-10 text-primary" />;
-    if (catLower.includes('ups') || catLower.includes('power')) return <Power className="h-10 w-10 text-primary" />;
-    return <Box className="h-10 w-10 text-primary" />;
+    if (catLower.includes('laptop')) return <Laptop className="h-12 w-12 text-primary" />;
+    if (catLower.includes('monitor')) return <Monitor className="h-12 w-12 text-primary" />;
+    if (catLower.includes('keyboard') || catLower.includes('mouse')) return <MousePointer className="h-12 w-12 text-primary" />;
+    if (catLower.includes('projector')) return <Projector className="h-12 w-12 text-primary" />;
+    if (catLower.includes('printer')) return <Printer className="h-12 w-12 text-primary" />;
+    if (catLower.includes('network') || catLower.includes('wifi') || catLower.includes('router')) return <Network className="h-12 w-12 text-primary" />;
+    if (catLower.includes('ups') || catLower.includes('power')) return <Power className="h-12 w-12 text-primary" />;
+    return <Box className="h-12 w-12 text-primary" />;
   };
 
   const getCartItem = (assetId: string) => cart.find(c => c.asset.assetId === assetId);
@@ -82,7 +84,7 @@ export default function AssetCatalogue() {
     const existing = getCartItem(asset.assetId);
     if (existing) {
       if (existing.quantity >= asset.availableQty) {
-        toast({ variant: "destructive", title: "Max quantity reached", description: `Only ${asset.availableQty} unit(s) available.` });
+        toast({ variant: "destructive", title: "Kuantiti Maksimum", description: `Hanya tinggal ${asset.availableQty} unit sahaja sedia ada.` });
         return;
       }
       setCart(cart.map(c => c.asset.assetId === asset.assetId ? { ...c, quantity: c.quantity + 1 } : c));
@@ -102,7 +104,7 @@ export default function AssetCatalogue() {
     }
     const asset = assets.find(a => a.assetId === assetId);
     if (asset && qty > asset.availableQty) {
-      toast({ variant: "destructive", title: "Max quantity reached", description: `Only ${asset.availableQty} unit(s) available.` });
+      toast({ variant: "destructive", title: "Kuantiti Maksimum", description: `Hanya tinggal ${asset.availableQty} unit sahaja sedia ada.` });
       return;
     }
     setCart(cart.map(c => c.asset.assetId === assetId ? { ...c, quantity: qty } : c));
@@ -151,8 +153,8 @@ export default function AssetCatalogue() {
       await Storage.saveRequests([...requests, newRequest]);
 
       toast({
-        title: 'Request Submitted',
-        description: `Request for ${items.length} unit(s) has been submitted.`,
+        title: 'Permohonan Berjaya Dihantar',
+        description: `Permohonan untuk ${items.length} unit peralatan telah dihantar untuk kelulusan.`,
       });
 
       setCart([]);
@@ -163,25 +165,28 @@ export default function AssetCatalogue() {
       setReturnDate('');
     } catch (error) {
       console.error("DEBUG ERROR SUBMIT:", error); 
-      toast({ variant: "destructive", title: "Error", description: "Failed to submit request. Check console!" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menghantar permohonan." });
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 md:pb-6"> {/* Ditambah padding bawah untuk elak bertembung dengan Floating FAB mobile */}
+      
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary">Asset Catalogue</h1>
-          <p className="text-muted-foreground">Browse and request available IT equipment.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Asset Catalogue</h1>
+          <p className="text-sm text-muted-foreground">Pilih dan pohon peralatan IT sedia ada untuk kegunaan tugasan anda.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search assets..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input placeholder="Cari model perkakasan..." className="pl-9 h-11 md:h-10 bg-background shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <Button variant="outline" className="relative gap-2" onClick={() => setCartOpen(true)} disabled={cart.length === 0}>
+          {/* Desktop Cart Button (Sembunyi di mobile) */}
+          <Button variant="outline" className="hidden md:flex relative gap-2 h-10 border-muted-foreground/20" onClick={() => setCartOpen(true)} disabled={cart.length === 0}>
             <ShoppingCart className="h-4 w-4" />
+            <span>Bakul</span>
             {totalItems > 0 && (
               <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
                 {totalItems}
@@ -191,22 +196,22 @@ export default function AssetCatalogue() {
         </div>
       </div>
 
-      {/* ─── BARU: RUANGAN FILTERS CATEGORY BADGES (MOBILE FRIENDLY SCROLLABLE) ─── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide md:mx-0 md:px-0">
+      {/* CATEGORY FILTER PILLS (MOBILE OPTIMIZED SWIPE) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-none md:mx-0 md:px-0 border-b border-muted/40 md:border-none">
         <Button 
           variant={activeCategory === 'all' ? 'default' : 'outline'} 
           size="sm" 
-          className="rounded-full text-xs font-medium"
+          className={`rounded-full text-xs font-semibold px-4 py-2 transition-all shadow-sm ${activeCategory === 'all' ? '' : 'bg-background border-muted-foreground/20'}`}
           onClick={() => setActiveCategory('all')}
         >
-          All Equipment
+          Semua Peralatan
         </Button>
         {categories.map((cat) => (
           <Button
             key={cat.id}
             variant={activeCategory === cat.slug ? 'default' : 'outline'}
             size="sm"
-            className="rounded-full text-xs font-medium whitespace-nowrap"
+            className={`rounded-full text-xs font-semibold px-4 py-2 whitespace-nowrap transition-all shadow-sm ${activeCategory === cat.slug ? '' : 'bg-background border-muted-foreground/20'}`}
             onClick={() => setActiveCategory(cat.slug)}
           >
             {cat.name}
@@ -215,55 +220,55 @@ export default function AssetCatalogue() {
       </div>
 
       {/* ASSET CARDS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {filteredAssets.map((asset) => {
           const cartItem = getCartItem(asset.assetId);
           const inCart = isInCart(asset.assetId);
           const unavailable = asset.status !== 'available' || asset.availableQty <= 0;
 
           return (
-            <Card key={asset.assetId} className={`group hover:shadow-lg transition-all border-none shadow-md overflow-hidden flex flex-col ${inCart ? 'ring-2 ring-primary' : ''}`}>
-              <div className="h-40 bg-muted flex items-center justify-center relative overflow-hidden">
+            <Card key={asset.assetId} className={`group hover:shadow-xl transition-all border border-muted/60 dark:border-muted/20 shadow-sm rounded-2xl overflow-hidden flex flex-col ${inCart ? 'ring-2 ring-primary border-transparent' : ''}`}>
+              <div className="h-44 bg-muted/40 dark:bg-muted/10 flex items-center justify-center relative overflow-hidden border-b border-muted/20">
                 {asset.imageUrl ? (
                   <img src={asset.imageUrl} alt={asset.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 ) : (
-                  getCategoryIcon(asset.category)
+                  <div className="group-hover:scale-110 transition-transform duration-300">
+                    {getCategoryIcon(asset.category)}
+                  </div>
                 )}
-                <div className="absolute top-2 right-2">
-                  <Badge variant={!unavailable ? 'default' : 'destructive'}>
-                    {!unavailable ? `Available (${asset.availableQty})` : 'Unavailable'}
+                <div className="absolute top-3 right-3">
+                  <Badge className={`shadow-sm border-none font-semibold ${!unavailable ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-destructive'}`}>
+                    {!unavailable ? `Sedia Ada (${asset.availableQty})` : 'Habis Pinjam'}
                   </Badge>
                 </div>
                 {inCart && (
-                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-full p-1">
-                    <Check className="h-3 w-3" />
+                  <div className="absolute top-3 left-3 bg-primary text-primary-foreground rounded-full p-1 shadow-md scale-110">
+                    <Check className="h-3 w-3 stroke-[3]" />
                   </div>
                 )}
               </div>
-              <CardHeader className="p-4 space-y-1">
-                <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider w-fit">{asset.category}</Badge>
-                <CardTitle className="text-lg font-bold line-clamp-1">{asset.brand} {asset.model}</CardTitle>
+              <CardHeader className="p-4 pb-2 space-y-1">
+                <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider w-fit rounded-md bg-muted text-muted-foreground">{asset.category}</Badge>
+                <CardTitle className="text-lg font-bold line-clamp-1 group-hover:text-primary transition-colors">{asset.brand} {asset.model}</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 flex-1">
-                <p className="text-sm text-muted-foreground line-clamp-2">{asset.description}</p>
+                <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 leading-relaxed">{asset.description || 'Tiada spesifikasi tambahan diberikan.'}</p>
               </CardContent>
-              <CardFooter className="p-4 border-t bg-muted/20">
+              <CardFooter className="p-4 border-t bg-muted/10">
                 {inCart && cartItem ? (
-                  <div className="w-full flex items-center gap-2">
-                    <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => updateQuantity(asset.assetId, cartItem.quantity - 1)}>
-                      <Minus className="h-3 w-3" />
+                  /* KAWALAN KUANTITI DI BESARKAN UNTUK MOBILE (THUMB FRIENDLY) */
+                  <div className="w-full flex items-center justify-between gap-1 bg-background border rounded-xl p-1 shadow-inner">
+                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-8 md:w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => updateQuantity(asset.assetId, cartItem.quantity - 1)}>
+                      <Minus className="h-4 w-4 md:h-3 md:w-3 stroke-[2.5]" />
                     </Button>
-                    <span className="flex-1 text-center font-medium text-sm">{cartItem.quantity}</span>
-                    <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => addToCart(asset)}>
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                    <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => removeFromCart(asset.assetId)}>
-                      <X className="h-3 w-3" />
+                    <span className="flex-1 text-center font-bold text-sm md:text-base text-foreground">{cartItem.quantity} Unit</span>
+                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-8 md:w-8 rounded-lg text-primary hover:bg-primary/10" onClick={() => addToCart(asset)}>
+                      <Plus className="h-4 w-4 md:h-3 md:w-3 stroke-[2.5]" />
                     </Button>
                   </div>
                 ) : (
-                  <Button className="w-full gap-2" disabled={unavailable} onClick={() => addToCart(asset)}>
-                    <Plus className="h-4 w-4" /> Add to Cart
+                  <Button className="w-full gap-2 h-11 md:h-10 rounded-xl font-semibold shadow-sm text-sm" disabled={unavailable} onClick={() => addToCart(asset)}>
+                    <Plus className="h-4 w-4 stroke-[2.5]" /> Tambah ke Bakul
                   </Button>
                 )}
               </CardFooter>
@@ -273,44 +278,71 @@ export default function AssetCatalogue() {
       </div>
 
       {filteredAssets.length === 0 && (
-        <div className="text-center py-20 bg-muted/30 rounded-xl border-2 border-dashed">
-          <Box className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-          <p className="text-lg font-medium text-muted-foreground">No assets found in this category.</p>
+        <div className="text-center py-20 bg-muted/20 rounded-2xl border-2 border-dashed border-muted/60">
+          <Box className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
+          <p className="text-base font-semibold text-muted-foreground">Tiada peralatan dijumpai buat masa ini.</p>
+        </div>
+      )}
+
+      
+      {/* 📱 FLOATING PILL CART BAR (MOBILE-ONLY - ANTI TENGGELAM & THUMB FRIENDLY) */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-4 left-4 right-4 md:hidden z-[999] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <Button 
+            onClick={() => setCartOpen(true)}
+            className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold flex items-center justify-between px-4 shadow-[0_8px_30px_rgb(0,0,0,0.16)] active:scale-[0.98] transition-transform border border-primary-foreground/10"
+          >
+            {/* Bahagian Kiri: Ikon Troli Hub & Info Bilangan Item (Mustahil Kemek) */}
+            <div className="flex items-center gap-3">
+              <div className="relative bg-primary-foreground/20 p-2 rounded-xl flex items-center justify-center">
+                <ShoppingCart className="h-5 w-5 text-primary-foreground stroke-[2.5]" />
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                  {totalItems}
+                </span>
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-black tracking-wide">Tengok Bakul</p>
+                <p className="text-[10px] font-medium opacity-80">Pohon {totalItems} peralatan</p>
+              </div>
+            </div>
+
+            {/* Bahagian Kanan: Butang Tindakan */}
+            <span className="text-xs font-bold bg-primary-foreground text-primary px-3 py-1.5 rounded-lg shadow-sm">
+              Seterusnya →
+            </span>
+          </Button>
         </div>
       )}
 
       {/* Cart Dialog */}
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-        <DialogContent className="max-w-[95vw] md:max-w-lg rounded-xl">
+        <DialogContent className="max-w-[95vw] md:max-w-lg rounded-2xl p-4 md:p-6 gap-4">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" /> Borrow Request
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <ShoppingCart className="h-5 w-5 text-primary" /> Borang Permohonan Pinjaman
             </DialogTitle>
             <DialogDescription>
-              Review your selected assets and fill in the details.
+              Semak senarai kuantiti perkakasan dan lengkapkan butiran maklumat di bawah.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase">Selected Assets ({totalItems} unit(s))</Label>
-              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Senarai Item Pilihan ({totalItems} unit)</Label>
+              <div className="border border-muted/60 rounded-xl divide-y bg-muted/10 overflow-hidden">
                 {cart.map(cartItem => (
-                  <div key={cartItem.asset.assetId} className="flex items-center justify-between px-3 py-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{cartItem.asset.brand} {cartItem.asset.model}</p>
-                      <p className="text-[10px] text-muted-foreground">{cartItem.asset.category}</p>
+                  <div key={cartItem.asset.assetId} className="flex items-center justify-between px-3 py-3 bg-background">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="text-sm font-bold text-foreground truncate">{cartItem.asset.brand} {cartItem.asset.model}</p>
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">{cartItem.asset.category}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => updateQuantity(cartItem.asset.assetId, cartItem.quantity - 1)}>
-                        <Minus className="h-3 w-3" />
+                    <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md" onClick={() => updateQuantity(cartItem.asset.assetId, cartItem.quantity - 1)}>
+                        <Minus className="h-3 w-3 stroke-[2.5]" />
                       </Button>
-                      <span className="text-sm font-medium w-6 text-center">{cartItem.quantity}</span>
-                      <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => addToCart(cartItem.asset)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(cartItem.asset.assetId)}>
-                        <X className="h-3 w-3" />
+                      <span className="text-sm font-bold w-6 text-center">{cartItem.quantity}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 rounded-md" onClick={() => addToCart(cartItem.asset)}>
+                        <Plus className="h-3 w-3 stroke-[2.5]" />
                       </Button>
                     </div>
                   </div>
@@ -318,32 +350,32 @@ export default function AssetCatalogue() {
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label>Purpose / Tujuan</Label>
-              <Textarea placeholder="Why do you need this equipment?" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+            <div className="grid gap-1.5">
+              <Label className="font-semibold text-sm">Tujuan / Alasan Memohon</Label>
+              <Textarea placeholder="Nyatakan sebab keperluan peralatan ini (cth: Tugasan audit luar, latihan staf baru...)" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="rounded-xl min-h-[70px]" />
             </div>
 
-            <div className="grid gap-2">
-              <Label>Tempat Digunakan</Label>
-              <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <div className="grid gap-1.5">
+              <Label className="font-semibold text-sm">Tempat / Lokasi Digunakan</Label>
+              <Input placeholder="Contoh: Bilik Mesyuarat Utama, Tingkat 3" value={location} onChange={(e) => setLocation(e.target.value)} className="rounded-xl h-11 md:h-10" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>Borrow Date</Label>
-                <Input type="date" value={borrowDate} onChange={(e) => setBorrowDate(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="font-semibold text-sm">Tarikh Ambil</Label>
+                <Input type="date" value={borrowDate} onChange={(e) => setBorrowDate(e.target.value)} className="rounded-xl h-11 md:h-10" />
               </div>
-              <div className="grid gap-2">
-                <Label>Return Date</Label>
-                <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+              <div className="grid gap-1.5">
+                <Label className="font-semibold text-sm">Tarikh Pulang</Label>
+                <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="rounded-xl h-11 md:h-10" />
               </div>
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCartOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitRequest} disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0}>
-              Submit Request ({totalItems} unit(s))
+          <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
+            <Button variant="outline" onClick={() => setCartOpen(false)} className="rounded-xl h-11 md:h-10 font-semibold max-sm:w-full">Batal</Button>
+            <Button onClick={handleSubmitRequest} disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0} className="rounded-xl h-11 md:h-10 font-bold max-sm:w-full shadow-md">
+              Hantar Permohonan ({totalItems} Unit)
             </Button>
           </DialogFooter>
         </DialogContent>

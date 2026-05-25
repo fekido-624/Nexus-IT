@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+
+
+
 import { 
   Table, 
   TableHeader, 
@@ -104,7 +107,7 @@ export default function UnitInventory() {
       setUnits(updatedUnits);
 
       const allAssets = await Storage.getAssets();
-      const updatedAssets = allAssets.map(a => {
+      const updatedAssets = allAssets.map((a: Asset) => {
         if (a.assetId === editingUnit.assetId) {
           return { ...a, status: (newStatus === 'available' ? 'available' : 'maintenance') as any };
         }

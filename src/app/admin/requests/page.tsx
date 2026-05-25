@@ -34,7 +34,6 @@ interface ItemApprovalState {
   }
 }
 
-// Interface baru untuk simpan senarai aset yang dipilih dalam Manual Assign
 interface ManualItem {
   assetId: string;
   unitId: string;
@@ -59,13 +58,16 @@ export default function BorrowRequests() {
   const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null);
   const [itemApprovalState, setItemApprovalState] = useState<ItemApprovalState>({});
 
-  // Manual assign dialog (DIKEMAS KINI)
+  // STATE MANUAL ASSIGNMENT
   const [isManualAssignOpen, setIsManualAssignOpen] = useState(false);
-  const [manualUnits, setManualUnits] = useState<AssetUnit[]>([]);
   const [manualForm, setManualForm] = useState({ userId: '', purpose: '', location: '', borrowDate: '', returnDate: '' });
-  const [manualItems, setManualItems] = useState<ManualItem[]>([]); // Menyimpan multiple assets
-  const [tempAssetId, setTempAssetId] = useState('');
-  const [tempUnitId, setTempUnitId] = useState('');
+  const [manualItems, setManualItems] = useState<ManualItem[]>([]); 
+  const [manualCategory, setManualCategory] = useState(''); 
+  const [tempUnitId, setTempUnitId] = useState(''); 
+  
+  // 🔥 STATE BARU: Untuk urus fungsi carian staf (Search Select Staff)
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [isUserListOpen, setIsUserListOpen] = useState(false);
   
   // Return dialog
   const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
@@ -257,34 +259,18 @@ export default function BorrowRequests() {
     }
   };
 
-  // ==========================================
-  // LOGIK MANUAL ASSIGNMENT BAHARU (MULTIPLE)
-  // ==========================================
-
-  const handleAssetSelect = (assetId: string) => {
-    // Tapis unit yang 'available' DAN belum dimasukkan dalam senarai (cart)
-    const filtered = allUnitsData.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged' && !manualItems.some(item => item.unitId === u.unitId));
-    setManualUnits(filtered);
-    setTempAssetId(assetId);
-    setTempUnitId('');
-  };
-
   const handleAddManualItem = () => {
-    if (!tempAssetId || !tempUnitId) return;
-    
-    const targetAsset = allAssets.find(a => a.assetId === tempAssetId);
-    const targetUnit = manualUnits.find(u => u.unitId === tempUnitId);
+    if (!tempUnitId) return;
+    const targetUnit = allUnitsData.find(u => u.unitId === tempUnitId);
 
-    if (targetAsset && targetUnit) {
+    if (targetUnit) {
       setManualItems([...manualItems, {
-        assetId: targetAsset.assetId,
+        assetId: targetUnit.assetId,
         unitId: targetUnit.unitId,
-        assetName: `${targetAsset.brand} ${targetAsset.model}`,
+        assetName: `${targetUnit.brand} ${targetUnit.model}`,
         assetTag: targetUnit.assetTag
       }]);
-      setTempAssetId('');
-      setTempUnitId('');
-      setManualUnits([]);
+      setTempUnitId(''); 
     }
   };
 
@@ -292,8 +278,7 @@ export default function BorrowRequests() {
     setManualItems(manualItems.filter(item => item.unitId !== unitId));
   };
 
-const handleManualAssignSubmit = async () => {
-    // 1. Tarik location dari form
+  const handleManualAssignSubmit = async () => {
     const { userId, purpose, location, borrowDate, returnDate } = manualForm;
     
     if (!userId || !location || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
@@ -329,11 +314,20 @@ const handleManualAssignSubmit = async () => {
         allAssetsList = allAssetsList.map(a => a.assetId === selected.assetId ? { ...a, availableQty: Math.max(0, (a.availableQty || 1) - 1) } : a);
       }
 
+      // 🔥 FIX TS: Objek yang di-format bersih, dijamin tiada nama bertindan
       const newRequest: any = {
-        requestId, userId: targetUser.uid, userName: targetUser.name, userDept: targetUser.department, 
+        requestId, 
+        userId: targetUser.uid, 
+        userName: targetUser.name, 
+        userDept: targetUser.department, 
         purpose, 
-        location: location, // <--- 2. Masukkan location di sini
-        requestDate: new Date().toISOString().split('T')[0], borrowDate, returnDate, status: 'approved', approvedBy: user.name, notes: 'Manual assignment by admin',
+        location, 
+        requestDate: new Date().toISOString().split('T')[0], 
+        borrowDate, 
+        returnDate, 
+        status: 'approved', 
+        approvedBy: user.name, 
+        notes: 'Manual assignment by admin',
         items: reqItems
       };
 
@@ -347,6 +341,9 @@ const handleManualAssignSubmit = async () => {
       setIsManualAssignOpen(false); 
       setManualForm({ userId: '', purpose: '', location: '', borrowDate: '', returnDate: '' });
       setManualItems([]);
+      setManualCategory('');
+      setTempUnitId('');
+      setUserSearchTerm(''); // Reset carian staf
       await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to assign asset" });
@@ -377,6 +374,24 @@ const handleManualAssignSubmit = async () => {
       default: return <Badge variant="secondary">{status}</Badge>;
     }
   };
+
+  const availableCategories = Array.from(
+    new Set(allUnitsData.map(u => u.category).filter(Boolean))
+  );
+
+  const selectableUnits = allUnitsData.filter(u => 
+    u.category === manualCategory && 
+    u.currentStatus === 'available' && 
+    u.condition !== 'lost' && 
+    u.condition !== 'damaged' &&
+    !manualItems.some(item => item.unitId === u.unitId)
+  );
+
+  // 🔥 FILTER LOGIK: Tapis staf berdasarkan input taipan admin (Nama atau Jabatan)
+  const filteredStaffOptions = allUsers.filter(u => 
+    (u.name || '').toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+    (u.department || '').toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -623,19 +638,77 @@ const handleManualAssignSubmit = async () => {
         </DialogContent>
       </Dialog>
 
-      {/* Manual Assignment Dialog (MULTIPLE ASSETS) */}
-      <Dialog open={isManualAssignOpen} onOpenChange={setIsManualAssignOpen}>
+      {/* Manual Assignment Dialog (MULTIPLE ASSETS + SEARCH SELECT STAFF) */}
+      <Dialog open={isManualAssignOpen} onOpenChange={(open) => { setIsManualAssignOpen(open); if(!open) { setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); } }}>
         <DialogContent className="max-w-[95vw] md:max-w-xl rounded-xl">
           <DialogHeader><DialogTitle>Direct Assignment</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2 max-h-[80vh] overflow-y-auto">
             
-            {/* Bahagian Borang Utama */}
-            <div className="grid gap-2">
+            {/* 🔥 SEKSYEN BARU: SEARCH SELECT STAFF (KALIS LIST PANJANG) */}
+            <div className="grid gap-2 relative">
               <Label>Select Staff</Label>
-              <Select value={manualForm.userId} onValueChange={(val) => setManualForm({...manualForm, userId: val})}>
-                <SelectTrigger><SelectValue placeholder="Search user..." /></SelectTrigger>
-                <SelectContent>{allUsers.map(u => <SelectItem key={u.uid} value={u.uid}>{u.name} ({u.department})</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="relative">
+                <Input
+                  placeholder="Taip nama atau jabatan staf untuk mencari..."
+                  value={userSearchTerm}
+                  onChange={(e) => {
+                    setUserSearchTerm(e.target.value);
+                    setIsUserListOpen(true);
+                    if (manualForm.userId) setManualForm({ ...manualForm, userId: '' }); // Reset jika mereka mula menaip semula
+                  }}
+                  onFocus={() => setIsUserListOpen(true)}
+                  className="pr-8 bg-background"
+                />
+                {manualForm.userId ? (
+                  <button 
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setManualForm({ ...manualForm, userId: '' });
+                      setUserSearchTerm('');
+                      setIsUserListOpen(true);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                )}
+              </div>
+
+              {/* Panel Terapung Senarai Hasil Carian Staf */}
+              {isUserListOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsUserListOpen(false)} />
+                  <div className="absolute z-50 top-[100%] left-0 right-0 max-h-48 overflow-y-auto bg-background border rounded-lg shadow-lg mt-1 p-1 divide-y divide-muted/50">
+                    {filteredStaffOptions.length === 0 ? (
+                      <div className="text-xs text-muted-foreground p-3 text-center">Tiada nama staf ditemui</div>
+                    ) : (
+                      filteredStaffOptions.map(u => (
+                        <div
+                          key={u.uid}
+                          className={`text-xs p-2.5 cursor-pointer rounded-md transition-colors flex items-center justify-between ${
+                            manualForm.userId === u.uid ? "bg-primary text-primary-foreground font-semibold" : "hover:bg-muted/80 text-foreground"
+                          }`}
+                          onClick={() => {
+                            setManualForm({ ...manualForm, userId: u.uid });
+                            setUserSearchTerm(`${u.name} (${u.department})`);
+                            setIsUserListOpen(false);
+                          }}
+                        >
+                          <div>
+                            <p className="font-medium">{u.name}</p>
+                            <p className={`text-[10px] ${manualForm.userId === u.uid ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                              {u.jawatan || 'Tiada Jawatan'} • {u.department}
+                            </p>
+                          </div>
+                          {manualForm.userId === u.uid && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -643,31 +716,47 @@ const handleManualAssignSubmit = async () => {
               <div className="grid gap-2"><Label>Return Date</Label><Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} /></div>
             </div>
             <div className="grid gap-2"><Label>Purpose / Notes</Label><Textarea placeholder="Manual assignment details..." value={manualForm.purpose} onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})} /></div>
-            {/* TAMBAH INPUT INI */}
             <div className="grid gap-2">
               <Label>Tempat Digunakan</Label>
               <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={manualForm.location} onChange={(e) => setManualForm({...manualForm, location: e.target.value})} />
             </div>
 
-            {/* Bahagian Cart (Tambah Item Berbilang) */}
+            {/* SEKSYEN "CART" TAMBAH ITEM MENGIKUT KATEGORI */}
             <div className="border rounded-xl p-4 bg-muted/20 space-y-4">
               <Label className="text-primary font-bold">Add Equipment to Assign</Label>
               <div className="flex flex-col md:flex-row gap-3">
+                
                 <div className="flex-1 grid gap-2">
-                  <Select value={tempAssetId} onValueChange={handleAssetSelect}>
-                    <SelectTrigger className="bg-background"><SelectValue placeholder="1. Select asset model..." /></SelectTrigger>
-                    <SelectContent>{allAssets.map(a => <SelectItem key={a.assetId} value={a.assetId}>{a.brand} {a.model}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1 grid gap-2">
-                  <Select value={tempUnitId} onValueChange={setTempUnitId} disabled={!tempAssetId}>
-                    <SelectTrigger className="bg-background"><SelectValue placeholder="2. Select serial..." /></SelectTrigger>
+                  <Select value={manualCategory} onValueChange={(val) => { setManualCategory(val); setTempUnitId(''); }}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="1. Pilih Kategori..." /></SelectTrigger>
                     <SelectContent>
-                      {manualUnits.length === 0 ? <SelectItem value="none" disabled>No units available</SelectItem> : manualUnits.map(u => <SelectItem key={u.unitId} value={u.unitId}>{u.assetTag}</SelectItem>)}
+                      {availableCategories.length === 0 ? (
+                        <SelectItem value="none" disabled>Tiada kategori sedia ada</SelectItem>
+                      ) : (
+                        availableCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="mt-auto gap-2" onClick={handleAddManualItem} disabled={!tempAssetId || !tempUnitId}>
+                
+                <div className="flex-1 grid gap-2">
+                  <Select value={tempUnitId} onValueChange={setTempUnitId} disabled={!manualCategory}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="2. Pilih No. Tag / Model..." /></SelectTrigger>
+                    <SelectContent>
+                      {selectableUnits.length === 0 ? (
+                        <SelectItem value="none" disabled>Tiada unit available</SelectItem>
+                      ) : (
+                        selectableUnits.map(u => (
+                          <SelectItem key={u.unitId} value={u.unitId}>
+                            [{u.brand} {u.model}] — {u.assetTag}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button className="mt-auto gap-2" onClick={handleAddManualItem} disabled={!tempUnitId}>
                   <Plus className="h-4 w-4" /> Add
                 </Button>
               </div>
@@ -695,7 +784,7 @@ const handleManualAssignSubmit = async () => {
 
           </div>
           <DialogFooter className="gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => { setIsManualAssignOpen(false); setManualItems([]); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setIsManualAssignOpen(false); setManualItems([]); setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); }}>Cancel</Button>
             <Button onClick={handleManualAssignSubmit} disabled={!manualForm.userId || manualItems.length === 0}>
               Assign {manualItems.length > 0 ? `${manualItems.length} Asset(s)` : ''}
             </Button>

@@ -71,10 +71,11 @@ export default function UserManagement() {
     loadUsers();
   }, [toast]);
 
+// Tukar u => kepada (u: User)
   const currentDepartments = Array.from(
     new Set([
       ...BASE_DEPARTMENTS,
-      ...users.map(u => u.department).filter(Boolean)
+      ...users.map((u: User) => u.department).filter(Boolean)
     ])
   );
 
@@ -253,7 +254,7 @@ export default function UserManagement() {
     document.body.removeChild(link);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -269,24 +270,34 @@ export default function UserManagement() {
         }
 
         const bersihkanTeks = (str: string) => str.trim().replace(/^["']|["']$/g, '').trim();
-        const headers = lines[0].split(',').map(h => bersihkanTeks(h).toLowerCase());
-
-        const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('nama'));
-        const emailIdx = headers.findIndex(h => h.includes('email') || h.includes('mel'));
-        const passwordIdx = headers.findIndex(h => h.includes('password') || h.includes('kata laluan'));
-        const roleIdx = headers.findIndex(h => h.includes('role') || h.includes('akses') || h.includes('peranan'));
-        const uidIdx = headers.findIndex(h => h.includes('uid') || h.includes('id'));
         
-        const deptIdx = headers.findIndex(h => 
+        // 🎯 FIX TS: Letak jenis (h: string)
+        const headers = lines[0].split(',').map((h: string) => bersihkanTeks(h).toLowerCase());
+
+        // 🎯 FIX TS: Letak jenis (h: string)
+        const nameIdx = headers.findIndex((h: string) => h.includes('name') || h.includes('nama'));
+        const emailIdx = headers.findIndex((h: string) => h.includes('email') || h.includes('mel'));
+        const passwordIdx = headers.findIndex((h: string) => h.includes('password') || h.includes('kata laluan'));
+        const roleIdx = headers.findIndex((h: string) => h.includes('role') || h.includes('akses') || h.includes('peranan'));
+        const uidIdx = headers.findIndex((h: string) => h.includes('uid') || h.includes('id'));
+        
+        const deptIdx = headers.findIndex((h: string) => 
           h.includes('department') || h.includes('dept') || h.includes('bahagian') || (h.includes('jabatan') && !h.includes('jawatan'))
         );
-        const jawatanIdx = headers.findIndex(h => h.includes('jawatan') || h.includes('position'));
+        const jawatanIdx = headers.findIndex((h: string) => h.includes('jawatan') || h.includes('position'));
 
         const newUsers: User[] = [];
 
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => bersihkanTeks(v));
+          // 🎯 FIX TS: Letak jenis (v: string)
+          const values = lines[i].split(',').map((v: string) => bersihkanTeks(v));
           if (values.length !== headers.length) continue;
+
+          const userMap: any = {};
+          // 🎯 FIX TS: Letak jenis (header: string, index: number)
+          headers.forEach((header: string, index: number) => {
+            userMap[header] = values[index];
+          });
 
           const nameTarget = nameIdx !== -1 ? values[nameIdx] : '';
           const emailTarget = emailIdx !== -1 ? values[emailIdx] : '';
@@ -317,8 +328,10 @@ export default function UserManagement() {
         }
 
         const currentUsers = await Storage.getUsers();
-        const filteredOldUsers = currentUsers.filter(oldUser => 
-          !newUsers.some(newUser => newUser.uid === oldUser.uid || newUser.email === oldUser.email)
+        
+        // 🎯 FIX TS: Letak jenis (oldUser: User) dan (newUser: User)
+        const filteredOldUsers = currentUsers.filter((oldUser: User) => 
+          !newUsers.some((newUser: User) => newUser.uid === oldUser.uid || newUser.email === oldUser.email)
         );
         
         const updatedUsers = [...filteredOldUsers, ...newUsers];
