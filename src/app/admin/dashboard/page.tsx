@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { Storage, Asset, AssetUnit, BorrowRequest } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Package, 
-  ArrowUpRight, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle2, 
+import {
+  Package,
+  ArrowUpRight,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
   XCircle,
-  CalendarClock
+  CalendarClock,
+  UserCheck
 } from 'lucide-react';
 import { addDays } from 'date-fns';
 import { 
@@ -34,6 +35,7 @@ export default function AdminDashboard() {
     totalAssets: 0,
     totalUnits: 0,
     borrowedUnits: 0,
+    assignedUnits: 0,
     pendingRequests: 0,
     overdueCount: 0,
     damagedCount: 0,
@@ -55,6 +57,7 @@ export default function AdminDashboard() {
         const todayStr = new Date().toISOString().split('T')[0];
         
         const borrowed = units.filter((u: AssetUnit) => u.currentStatus === 'borrowed').length;
+        const assigned = units.filter((u: AssetUnit) => u.currentStatus === 'assigned').length;
         const pending = requests.filter((r: BorrowRequest) => r.status === 'pending' || r.status === 'returning').length;
         const good = units.filter((u: AssetUnit) => u.condition === 'good').length;
         const damaged = units.filter((u: AssetUnit) => u.condition === 'damaged').length;
@@ -68,6 +71,7 @@ export default function AdminDashboard() {
           totalAssets: assets.length,
           totalUnits: units.length,
           borrowedUnits: borrowed,
+          assignedUnits: assigned,
           pendingRequests: pending,
           overdueCount: overdue,
           goodCount: good,
@@ -109,7 +113,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Assets</CardTitle>
@@ -128,6 +132,16 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.borrowedUnits}</div>
             <p className="text-xs text-muted-foreground">In use by staff</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-purple-600">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hak Jagaan</CardTitle>
+            <UserCheck className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.assignedUnits}</div>
+            <p className="text-xs text-muted-foreground">Di bawah jagaan staf</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-yellow-500">

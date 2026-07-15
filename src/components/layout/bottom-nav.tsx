@@ -3,27 +3,32 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, BookOpen, LayoutDashboard, Package, Archive, ClipboardList, LogOut, Users } from 'lucide-react';
+import { Search, BookOpen, LayoutDashboard, Package, ClipboardList, LogOut, Users, MapPin, UserCheck, KeyRound } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
 
 export function BottomNav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   if (!user) return null;
 
   const adminLinks = [
     { href: '/admin/dashboard', label: 'Dash', icon: LayoutDashboard },
     { href: '/admin/assets', label: 'Assets', icon: Package },
-    { href: '/admin/inventory', label: 'Units', icon: Archive },
     { href: '/admin/requests', label: 'Reqs', icon: ClipboardList },
+    { href: '/admin/custody', label: 'Jagaan', icon: UserCheck },
     { href: '/admin/users', label: 'Users', icon: Users },
+    { href: '/admin/floor-plan', label: 'Peta', icon: MapPin },
   ];
 
   const userLinks = [
     { href: '/user/catalogue', label: 'Search', icon: Search },
     { href: '/user/my-requests', label: 'My Reqs', icon: BookOpen },
+    { href: '/user/floor-plan', label: 'Peta', icon: MapPin },
   ];
 
   const links = user.role === 'admin' ? adminLinks : userLinks;
@@ -45,13 +50,22 @@ export function BottomNav() {
           </Link>
         );
       })}
-      <button 
+      <button
+        onClick={() => setIsPasswordDialogOpen(true)}
+        className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-muted-foreground min-w-0"
+      >
+        <KeyRound className="h-5 w-5" />
+        <span className="text-[9px] font-medium leading-none">P.laluan</span>
+      </button>
+      <button
         onClick={logout}
         className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-destructive min-w-0"
       >
         <LogOut className="h-5 w-5" />
         <span className="text-[9px] font-medium leading-none">Exit</span>
       </button>
+
+      <ChangePasswordDialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen} user={user} />
     </nav>
   );
 }

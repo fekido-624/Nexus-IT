@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Storage, Asset, AssetCategory } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Laptop, Monitor, MousePointer, Projector, Printer, Network, Power, Box, ShoppingCart, X, Plus, Check, Minus } from 'lucide-react';
+import { Search, Laptop, Monitor, MousePointer, Projector, Printer, Network, Power, Box, ShoppingCart, X, Plus, Check, Minus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -29,9 +29,11 @@ export default function AssetCatalogue() {
   const { toast } = useToast();
 
   const [purpose, setPurpose] = useState('');
-  const [location, setLocation] = useState(''); 
+  const [location, setLocation] = useState('');
   const [borrowDate, setBorrowDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const isSubmittingRequestRef = useRef(false);
 
   useEffect(() => {
     async function loadData() {
@@ -51,17 +53,20 @@ export default function AssetCatalogue() {
     // Fungsi kecilan untuk buang segala jarak, sempang, dan huruf besar/kecil
     const bersihkanString = (str: string) => (str || '').toLowerCase().replace(/[\s_-]/g, '').trim();
 
-    const matchesSearch = 
+    const matchesSearch =
       asset.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.category.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
     // Padankan kategori menggunakan fungsi pembersihan (Kalis sempang vs jarak)
-    const matchesCategory = 
-      activeCategory === 'all' || 
+    const matchesCategory =
+      activeCategory === 'all' ||
       bersihkanString(asset.category) === bersihkanString(activeCategory);
 
-    return matchesSearch && matchesCategory;
+    // Aset Master tidak boleh dipinjam — hanya Gunasama dipaparkan kepada staf
+    const isGunasama = asset.usageType !== 'master';
+
+    return matchesSearch && matchesCategory && isGunasama;
   });
 
   const getCategoryIcon = (category: string) => {
@@ -111,8 +116,10 @@ export default function AssetCatalogue() {
   };
 
   const handleSubmitRequest = async () => {
-    if (!user || cart.length === 0 || !purpose || !location || !borrowDate || !returnDate) return;
+    if (!user || cart.length === 0 || !purpose || !location || !borrowDate || !returnDate || isSubmittingRequestRef.current) return;
 
+    isSubmittingRequestRef.current = true;
+    setIsSubmittingRequest(true);
     try {
       const requests = (await Storage.getRequests()) || []; 
       const requestId = `REQ-${Date.now()}`;
@@ -164,8 +171,11 @@ export default function AssetCatalogue() {
       setBorrowDate('');
       setReturnDate('');
     } catch (error) {
-      console.error("DEBUG ERROR SUBMIT:", error); 
+      console.error("DEBUG ERROR SUBMIT:", error);
       toast({ variant: "destructive", title: "Ralat", description: "Gagal menghantar permohonan." });
+    } finally {
+      isSubmittingRequestRef.current = false;
+      setIsSubmittingRequest(false);
     }
   };
 
@@ -373,9 +383,14 @@ export default function AssetCatalogue() {
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
-            <Button variant="outline" onClick={() => setCartOpen(false)} className="rounded-xl h-11 md:h-10 font-semibold max-sm:w-full">Batal</Button>
-            <Button onClick={handleSubmitRequest} disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0} className="rounded-xl h-11 md:h-10 font-bold max-sm:w-full shadow-md">
-              Hantar Permohonan ({totalItems} Unit)
+            <Button variant="outline" onClick={() => setCartOpen(false)} disabled={isSubmittingRequest} className="rounded-xl h-11 md:h-10 font-semibold max-sm:w-full">Batal</Button>
+            <Button
+              onClick={handleSubmitRequest}
+              disabled={!purpose || !location || !borrowDate || !returnDate || cart.length === 0 || isSubmittingRequest}
+              className="rounded-xl h-11 md:h-10 font-bold max-sm:w-full shadow-md gap-2"
+            >
+              {isSubmittingRequest && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSubmittingRequest ? 'Menghantar...' : `Hantar Permohonan (${totalItems} Unit)`}
             </Button>
           </DialogFooter>
         </DialogContent>

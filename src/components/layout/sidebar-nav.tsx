@@ -8,33 +8,40 @@ import {
   Package, 
   ClipboardList, 
   Settings, 
-  Users, 
+  Users,
   LogOut,
-  Archive,
   Search,
-  BookOpen
+  BookOpen,
+  MapPin,
+  UserCheck,
+  KeyRound
 } from 'lucide-react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   if (!user) return null;
 
   const adminLinks = [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/assets', label: 'Asset Management', icon: Package },
-    { href: '/admin/inventory', label: 'Unit Inventory', icon: Archive },
     { href: '/admin/requests', label: 'Borrow Requests', icon: ClipboardList },
+    { href: '/admin/custody', label: 'Hak Jagaan', icon: UserCheck },
     { href: '/admin/users', label: 'User Management', icon: Users },
+    { href: '/admin/floor-plan', label: 'Floor Plan', icon: MapPin },
   ];
 
   const userLinks = [
     { href: '/user/catalogue', label: 'Asset Catalogue', icon: Search },
     { href: '/user/my-requests', label: 'My Requests', icon: BookOpen },
+    { href: '/user/floor-plan', label: 'Floor Plan', icon: MapPin },
   ];
 
   const links = user.role === 'admin' ? adminLinks : userLinks;
@@ -76,8 +83,16 @@ export function SidebarNav() {
           <p className="font-bold text-sm truncate">{user.name}</p>
           <p className="text-xs text-muted-foreground truncate">{user.department}</p>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
+          className="w-full flex items-center gap-2 mb-2"
+          onClick={() => setIsPasswordDialogOpen(true)}
+        >
+          <KeyRound className="h-4 w-4" />
+          Tukar Kata Laluan
+        </Button>
+        <Button
+          variant="outline"
           className="w-full flex items-center gap-2 text-destructive border-destructive/20 hover:bg-destructive/10"
           onClick={logout}
         >
@@ -85,6 +100,8 @@ export function SidebarNav() {
           Logout
         </Button>
       </div>
+
+      <ChangePasswordDialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen} user={user} />
     </div>
   );
 }

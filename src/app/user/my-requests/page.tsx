@@ -1,43 +1,76 @@
 "use client"
 
-import { useState, useEffect } from 'react';
-import { Storage, BorrowRequest } from '@/lib/storage';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect, useRef } from 'react';
+import { Storage, BorrowRequest, CustodyRecord } from '@/lib/storage';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
-import { ClipboardList, AlertCircle, CheckCircle2, Clock, XCircle, RefreshCw, CalendarClock, ChevronDown, ChevronUp, Printer } from 'lucide-react';
+import { ClipboardList, AlertCircle, CheckCircle2, Clock, XCircle, RefreshCw, CalendarClock, ChevronDown, ChevronUp, Printer, Loader2, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { printBorangKEWPA9 } from '@/lib/print-borang';
 import React from 'react';
 
 export default function MyRequests() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
+  const [myCustody, setMyCustody] = useState<CustodyRecord[]>([]);
   const [expandedReqs, setExpandedReqs] = useState<string[]>([]);
+  const [printingRequestId, setPrintingRequestId] = useState<string | null>(null);
+  const isPrintingRef = useRef(false);
+  const [returningRequestId, setReturningRequestId] = useState<string | null>(null);
+  const isReturningRef = useRef(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     async function loadRequests() {
       if (!user) return;
-      const allRequests = await Storage.getRequests();
+      const [allRequests, allCustody] = await Promise.all([
+        Storage.getRequests(),
+        Storage.getCustodyRecords(),
+      ]);
       setRequests(allRequests.filter(r => r.userId === user.uid).reverse());
+      setMyCustody(allCustody.filter(c => c.userId === user.uid && c.status === 'active'));
     }
     loadRequests();
   }, [user]);
 
   const handleInitiateReturn = async (req: BorrowRequest) => {
-    const allRequests = await Storage.getRequests();
-    const updated = allRequests.map(r =>
-      r.requestId === req.requestId ? { ...r, status: 'returning' as const } : r
-    );
-    await Storage.saveRequests(updated);
-    toast({
-      title: 'Return Initiated',
-      description: 'Admin will review and approve your return once the asset is received.',
-    });
-    setRequests(updated.filter(r => r.userId === user!.uid).reverse());
+    if (isReturningRef.current) return;
+    isReturningRef.current = true;
+    setReturningRequestId(req.requestId);
+    try {
+      const allRequests = await Storage.getRequests();
+      const updated = allRequests.map(r =>
+        r.requestId === req.requestId ? { ...r, status: 'returning' as const } : r
+      );
+      await Storage.saveRequests(updated);
+      toast({
+        title: 'Return Initiated',
+        description: 'Admin will review and approve your return once the asset is received.',
+      });
+      setRequests(updated.filter(r => r.userId === user!.uid).reverse());
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to initiate return." });
+    } finally {
+      isReturningRef.current = false;
+      setReturningRequestId(null);
+    }
+  };
+
+  const handlePrintBorang = async (req: BorrowRequest) => {
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    setPrintingRequestId(req.requestId);
+    try {
+      await printBorangKEWPA9(req, user!, [user!]);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to generate the form." });
+    } finally {
+      isPrintingRef.current = false;
+      setPrintingRequestId(null);
+    }
   };
 
   const toggleExpand = (reqId: string) => {
@@ -66,6 +99,48 @@ export default function MyRequests() {
         <h1 className="text-3xl font-bold tracking-tight text-primary">My Requests</h1>
         <p className="text-muted-foreground">Monitor the status of your equipment borrow history.</p>
       </div>
+
+      {myCustody.length > 0 && (
+        <Card className="shadow-md border-purple-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg text-purple-700">
+              <ShieldCheck className="h-5 w-5" /> Aset Hak Jagaan Saya
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Aset jabatan yang diletakkan di bawah jagaan anda. Tiada tarikh pemulangan — aset kekal hak milik jabatan.
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-purple-50/50">
+                  <TableHead>Aset</TableHead>
+                  <TableHead>Tarikh Diberi</TableHead>
+                  <TableHead className="hidden md:table-cell">Lokasi</TableHead>
+                  <TableHead className="hidden md:table-cell">Catatan</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {myCustody.map((rec) => (
+                  <TableRow key={rec.custodyId}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm">{rec.assetName}</span>
+                        <code className="text-[10px] text-muted-foreground font-mono">{rec.assetTag}</code>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">{rec.assignedDate}</TableCell>
+                    <TableCell className="hidden md:table-cell text-xs">{rec.location || <span className="text-muted-foreground italic">—</span>}</TableCell>
+                    <TableCell className="hidden md:table-cell text-xs">{rec.notes || <span className="text-muted-foreground italic">—</span>}</TableCell>
+                    <TableCell><Badge className="bg-purple-600">Hak Jagaan</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-md">
         <CardContent className="p-0">
@@ -126,16 +201,33 @@ export default function MyRequests() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1 flex-wrap">
                           {req.status === 'approved' && (
-                            <Button size="sm" variant="outline" onClick={() => handleInitiateReturn(req)}>
-                              Return Asset
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={returningRequestId === req.requestId}
+                              onClick={() => handleInitiateReturn(req)}
+                              className="gap-1"
+                            >
+                              {returningRequestId === req.requestId && <Loader2 className="h-3 w-3 animate-spin" />}
+                              {returningRequestId === req.requestId ? 'Processing...' : 'Return Asset'}
                             </Button>
                           )}
                           {req.status === 'returning' && (
                             <span className="text-xs text-muted-foreground italic">Awaiting Admin</span>
                           )}
                           {(req.status === 'approved' || req.status === 'returned' || req.status === 'pending') && (
-                            <Button size="sm" variant="outline" className="gap-1" onClick={() => printBorangKEWPA9(req, user!, [user!])}>
-                              <Printer className="h-3 w-3" /> Print
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              disabled={printingRequestId === req.requestId}
+                              onClick={() => handlePrintBorang(req)}
+                            >
+                              {printingRequestId === req.requestId ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</>
+                              ) : (
+                                <><Printer className="h-3 w-3" /> Print</>
+                              )}
                             </Button>
                           )}
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(req.requestId)}>

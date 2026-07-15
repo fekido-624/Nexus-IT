@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Storage, BorrowRequest, BorrowRequestItem, AssetUnit, Asset, User } from '@/lib/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck, Printer, ChevronDown, ChevronUp, Trash2, Plus } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, X, UserPlus, ShieldCheck, Printer, ChevronDown, ChevronUp, Trash2, Plus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { printBorangKEWPA9 } from '@/lib/print-borang';
@@ -50,8 +50,21 @@ export default function BorrowRequests() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [expandedReqs, setExpandedReqs] = useState<string[]>([]);
-  
+
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
+  const [printingRequestId, setPrintingRequestId] = useState<string | null>(null);
+  const isPrintingRef = useRef(false);
+
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const isDeletingSelectedRef = useRef(false);
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const isSubmittingApprovalRef = useRef(false);
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
+  const isRejectingRef = useRef(false);
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const isSubmittingReturnRef = useRef(false);
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+  const isSubmittingManualRef = useRef(false);
 
   // Approval dialog
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
@@ -101,15 +114,20 @@ export default function BorrowRequests() {
     }
   };
 
+  const masterAssetIds = new Set(allAssets.filter(a => a.usageType === 'master').map(a => a.assetId));
+
   const getAvailableUnitsForAsset = (assetId: string) => {
-    return allUnitsData.filter(u => u.assetId === assetId && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged');
+    return allUnitsData.filter(u => u.assetId === assetId && !masterAssetIds.has(u.assetId) && u.currentStatus === 'available' && u.condition !== 'lost' && u.condition !== 'damaged');
   };
 
   const handleDeleteSelected = async () => {
+    if (isDeletingSelectedRef.current) return;
     if (!window.confirm(`Adakah anda pasti mahu memadam ${selectedRequestIds.length} rekod ini? Tindakan ini tidak boleh diundur.`)) {
       return;
     }
 
+    isDeletingSelectedRef.current = true;
+    setIsDeletingSelected(true);
     try {
       let currentRequests = await Storage.getRequests();
       let units = await Storage.getUnits();
@@ -134,10 +152,13 @@ export default function BorrowRequests() {
       await Storage.saveAssets(assets);
 
       toast({ title: "Berjaya Dipadam", description: `${selectedRequestIds.length} rekod permohonan telah dipadam.` });
-      setSelectedRequestIds([]); 
-      await loadData(); 
+      setSelectedRequestIds([]);
+      await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Ralat", description: "Gagal memadam rekod permohonan." });
+    } finally {
+      isDeletingSelectedRef.current = false;
+      setIsDeletingSelected(false);
     }
   };
 
@@ -159,7 +180,9 @@ export default function BorrowRequests() {
   };
 
   const handleSubmitApproval = async () => {
-    if (!selectedRequest || !user) return;
+    if (!selectedRequest || !user || isSubmittingApprovalRef.current) return;
+    isSubmittingApprovalRef.current = true;
+    setIsSubmittingApproval(true);
     try {
       const allRequests = await Storage.getRequests();
       const units = await Storage.getUnits();
@@ -202,10 +225,16 @@ export default function BorrowRequests() {
       await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to process request" });
+    } finally {
+      isSubmittingApprovalRef.current = false;
+      setIsSubmittingApproval(false);
     }
   };
 
   const handleReject = async (req: BorrowRequest) => {
+    if (isRejectingRef.current) return;
+    isRejectingRef.current = true;
+    setRejectingRequestId(req.requestId);
     try {
       const allRequests = await Storage.getRequests();
       await Storage.saveRequests(allRequests.map(r => r.requestId === req.requestId ? { ...r, status: 'rejected' as const, items: r.items.map(i => ({ ...i, status: 'rejected' as const })) } : r));
@@ -213,11 +242,16 @@ export default function BorrowRequests() {
       await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to reject request" });
+    } finally {
+      isRejectingRef.current = false;
+      setRejectingRequestId(null);
     }
   };
 
   const handleSubmitReturn = async () => {
-    if (!returnRequest) return;
+    if (!returnRequest || isSubmittingReturnRef.current) return;
+    isSubmittingReturnRef.current = true;
+    setIsSubmittingReturn(true);
     try {
       const [allRequests, units, assets] = await Promise.all([ Storage.getRequests(), Storage.getUnits(), Storage.getAssets() ]);
 
@@ -250,12 +284,15 @@ export default function BorrowRequests() {
 
       toast({ title: "Return Processed", description: `Selected items have been returned successfully.` });
       
-      setRequests(newRequestsList.reverse()); 
+      setRequests(newRequestsList.reverse());
       setIsReturnDialogOpen(false);
       setReturnRequest(null);
       setReturnItemIds([]);
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to process return" });
+    } finally {
+      isSubmittingReturnRef.current = false;
+      setIsSubmittingReturn(false);
     }
   };
 
@@ -279,13 +316,16 @@ export default function BorrowRequests() {
   };
 
   const handleManualAssignSubmit = async () => {
+    if (isSubmittingManualRef.current) return;
     const { userId, purpose, location, borrowDate, returnDate } = manualForm;
-    
+
     if (!userId || !location || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
-      toast({ variant: "destructive", title: "Incomplete Form", description: "Sila isi semua maklumat termasuk tempat digunakan." }); 
+      toast({ variant: "destructive", title: "Incomplete Form", description: "Sila isi semua maklumat termasuk tempat digunakan." });
       return;
     }
-    
+
+    isSubmittingManualRef.current = true;
+    setIsSubmittingManual(true);
     try {
       const targetUser = allUsers.find(u => u.uid === userId);
       if (!targetUser) return;
@@ -347,11 +387,28 @@ export default function BorrowRequests() {
       await loadData();
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to assign asset" });
+    } finally {
+      isSubmittingManualRef.current = false;
+      setIsSubmittingManual(false);
     }
   };
 
   const toggleExpand = (reqId: string) => {
     setExpandedReqs(prev => prev.includes(reqId) ? prev.filter(id => id !== reqId) : [...prev, reqId]);
+  };
+
+  const handlePrintBorang = async (req: BorrowRequest) => {
+    if (isPrintingRef.current) return;
+    isPrintingRef.current = true;
+    setPrintingRequestId(req.requestId);
+    try {
+      await printBorangKEWPA9(req, user!, allUsers);
+    } catch {
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menjana borang." });
+    } finally {
+      isPrintingRef.current = false;
+      setPrintingRequestId(null);
+    }
   };
 
   const filteredRequests = requests.filter(req => {
@@ -379,10 +436,11 @@ export default function BorrowRequests() {
     new Set(allUnitsData.map(u => u.category).filter(Boolean))
   );
 
-  const selectableUnits = allUnitsData.filter(u => 
-    u.category === manualCategory && 
-    u.currentStatus === 'available' && 
-    u.condition !== 'lost' && 
+  const selectableUnits = allUnitsData.filter(u =>
+    u.category === manualCategory &&
+    !masterAssetIds.has(u.assetId) &&
+    u.currentStatus === 'available' &&
+    u.condition !== 'lost' &&
     u.condition !== 'damaged' &&
     !manualItems.some(item => item.unitId === u.unitId)
   );
@@ -402,8 +460,9 @@ export default function BorrowRequests() {
         </div>
         <div className="flex w-full md:w-auto gap-2">
           {selectedRequestIds.length > 0 && (
-            <Button variant="destructive" className="gap-2" onClick={handleDeleteSelected}>
-              <Trash2 className="h-4 w-4" /> Padam ({selectedRequestIds.length})
+            <Button variant="destructive" className="gap-2" disabled={isDeletingSelected} onClick={handleDeleteSelected}>
+              {isDeletingSelected ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {isDeletingSelected ? 'Memadam...' : `Padam (${selectedRequestIds.length})`}
             </Button>
           )}
           <Button className="w-full md:w-auto gap-2" onClick={() => setIsManualAssignOpen(true)}>
@@ -527,11 +586,11 @@ export default function BorrowRequests() {
                         <div className="flex justify-end gap-1 flex-wrap">
                           {req.status === 'pending' && (
                             <>
-                              <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 border-green-200" onClick={() => handleOpenApprove(req)}>
+                              <Button size="icon" variant="outline" className="h-8 w-8 text-green-600 border-green-200" disabled={rejectingRequestId === req.requestId} onClick={() => handleOpenApprove(req)}>
                                 <CheckCircle2 className="h-4 w-4" />
                               </Button>
-                              <Button size="icon" variant="outline" className="h-8 w-8 text-red-600 border-red-200" onClick={() => handleReject(req)}>
-                                <XCircle className="h-4 w-4" />
+                              <Button size="icon" variant="outline" className="h-8 w-8 text-red-600 border-red-200" disabled={rejectingRequestId === req.requestId} onClick={() => handleReject(req)}>
+                                {rejectingRequestId === req.requestId ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                               </Button>
                             </>
                           )}
@@ -541,8 +600,18 @@ export default function BorrowRequests() {
                             </Button>
                           )}
                           {(req.status === 'approved' || req.status === 'returned') && (
-                            <Button size="sm" variant="outline" className="text-primary border-primary/30 h-8 text-[10px] md:text-xs gap-1" onClick={() => printBorangKEWPA9(req, user!, allUsers)}>
-                              <Printer className="h-3 w-3" /> Print
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-primary border-primary/30 h-8 text-[10px] md:text-xs gap-1"
+                              disabled={printingRequestId === req.requestId}
+                              onClick={() => handlePrintBorang(req)}
+                            >
+                              {printingRequestId === req.requestId ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" /> Menjana...</>
+                              ) : (
+                                <><Printer className="h-3 w-3" /> Print</>
+                              )}
                             </Button>
                           )}
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleExpand(req.requestId)}>
@@ -632,8 +701,15 @@ export default function BorrowRequests() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitApproval} disabled={selectedRequest?.items.some(item => { const approval = itemApprovalState[item.itemId]; return approval?.status === 'approved' && !approval?.unitId; })}>Submit</Button>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)} disabled={isSubmittingApproval}>Cancel</Button>
+            <Button
+              onClick={handleSubmitApproval}
+              disabled={isSubmittingApproval || selectedRequest?.items.some(item => { const approval = itemApprovalState[item.itemId]; return approval?.status === 'approved' && !approval?.unitId; })}
+              className="gap-2"
+            >
+              {isSubmittingApproval && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSubmittingApproval ? 'Submitting...' : 'Submit'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -784,9 +860,16 @@ export default function BorrowRequests() {
 
           </div>
           <DialogFooter className="gap-2 border-t pt-4">
-            <Button variant="outline" onClick={() => { setIsManualAssignOpen(false); setManualItems([]); setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); }}>Cancel</Button>
-            <Button onClick={handleManualAssignSubmit} disabled={!manualForm.userId || manualItems.length === 0}>
-              Assign {manualItems.length > 0 ? `${manualItems.length} Asset(s)` : ''}
+            <Button
+              variant="outline"
+              disabled={isSubmittingManual}
+              onClick={() => { setIsManualAssignOpen(false); setManualItems([]); setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleManualAssignSubmit} disabled={!manualForm.userId || manualItems.length === 0 || isSubmittingManual} className="gap-2">
+              {isSubmittingManual && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSubmittingManual ? 'Assigning...' : `Assign ${manualItems.length > 0 ? `${manualItems.length} Asset(s)` : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -820,8 +903,11 @@ export default function BorrowRequests() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsReturnDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmitReturn} disabled={returnItemIds.length === 0}>Confirm Return ({returnItemIds.length} item)</Button>
+            <Button variant="outline" onClick={() => setIsReturnDialogOpen(false)} disabled={isSubmittingReturn}>Cancel</Button>
+            <Button onClick={handleSubmitReturn} disabled={returnItemIds.length === 0 || isSubmittingReturn} className="gap-2">
+              {isSubmittingReturn && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isSubmittingReturn ? 'Processing...' : `Confirm Return (${returnItemIds.length} item)`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

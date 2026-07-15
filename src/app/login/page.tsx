@@ -1,24 +1,29 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Package } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const isLoggingInRef = useRef(false);
   const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoggingInRef.current) return;
     setError('');
 
+    isLoggingInRef.current = true;
+    setIsLoggingIn(true);
     try {
       const success = await login(email, password);
       if (!success) {
@@ -26,6 +31,9 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError('Login failed. Please check your credentials and try again.');
+    } finally {
+      isLoggingInRef.current = false;
+      setIsLoggingIn(false);
     }
   };
 
@@ -65,7 +73,10 @@ export default function LoginPage() {
               />
             </div>
             {error && <p className="text-sm text-destructive font-medium">{error}</p>}
-            <Button type="submit" className="w-full text-lg h-12">Login</Button>
+            <Button type="submit" className="w-full text-lg h-12 gap-2" disabled={isLoggingIn}>
+              {isLoggingIn && <Loader2 className="h-5 w-5 animate-spin" />}
+              {isLoggingIn ? 'Logging in...' : 'Login'}
+            </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col text-center space-y-2 text-sm text-muted-foreground border-t bg-muted/50 rounded-b-lg">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Storage, User } from '@/lib/storage';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Users, Plus, Pencil, Trash2, Search, ShieldCheck, User as UserIcon, Upload, Download } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Search, ShieldCheck, User as UserIcon, Upload, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
@@ -45,6 +45,11 @@ export default function UserManagement() {
   
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
+  const isDeletingRef = useRef(false);
+  const [isUploadingCsv, setIsUploadingCsv] = useState(false);
+  const isUploadingCsvRef = useRef(false);
 
   // 🔥 STATE BARU: Untuk menguruskan tandaan/pilihan multiple users
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -109,8 +114,10 @@ export default function UserManagement() {
   };
 
   const handleSave = async () => {
-    if (!name || !email || !department) return;
+    if (!name || !email || !department || isSavingRef.current) return;
 
+    isSavingRef.current = true;
+    setIsSaving(true);
     try {
       const currentUsers = await Storage.getUsers();
       
@@ -153,6 +160,9 @@ export default function UserManagement() {
     } catch (error) {
       console.error('Failed to save user:', error);
       toast({ variant: "destructive", title: "Error", description: "Failed to save user" });
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -179,6 +189,8 @@ export default function UserManagement() {
   };
 
   const handleDelete = async () => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
     try {
       const requests = await Storage.getRequests();
       const hasActive = requests.some(r =>
@@ -198,6 +210,7 @@ export default function UserManagement() {
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to delete user" });
     } finally {
+      isDeletingRef.current = false;
       setConfirmOpen(false);
       setDeleteTargetId('');
     }
@@ -205,6 +218,8 @@ export default function UserManagement() {
 
   // 🔥 FUNGSI BARU: PROSES PADAM SECARA PUKAL (BULK DELETE)
   const handleBulkDelete = async () => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
     try {
       const requests = await Storage.getRequests();
       
@@ -236,6 +251,7 @@ export default function UserManagement() {
       console.error(error);
       toast({ variant: "destructive", title: "Error", description: "Failed to execute bulk deletion." });
     } finally {
+      isDeletingRef.current = false;
       setBulkConfirmOpen(false);
     }
   };
@@ -256,8 +272,10 @@ export default function UserManagement() {
 
 const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || isUploadingCsvRef.current) return;
 
+    isUploadingCsvRef.current = true;
+    setIsUploadingCsv(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
@@ -342,7 +360,9 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       } catch (error) {
         toast({ variant: "destructive", title: "Ralat", description: "Gagal memproses fail CSV." });
       } finally {
-        e.target.value = ''; 
+        isUploadingCsvRef.current = false;
+        setIsUploadingCsv(false);
+        e.target.value = '';
       }
     };
     reader.readAsText(file);
@@ -361,14 +381,16 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <Download className="h-4 w-4" /> Template CSV
           </Button>
 
-          <Button variant="secondary" className="gap-2" asChild>
-            <label className="cursor-pointer">
-              <Upload className="h-4 w-4" /> Import CSV
-              <input 
-                type="file" 
-                accept=".csv" 
-                className="hidden" 
-                onChange={handleFileUpload} 
+          <Button variant="secondary" className="gap-2" disabled={isUploadingCsv} asChild>
+            <label className={isUploadingCsv ? "pointer-events-none opacity-50" : "cursor-pointer"}>
+              {isUploadingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {isUploadingCsv ? 'Uploading...' : 'Import CSV'}
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                disabled={isUploadingCsv}
+                onChange={handleFileUpload}
               />
             </label>
           </Button>
@@ -433,9 +455,10 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={resetForm}>Cancel</Button>
-                <Button onClick={handleSave} disabled={!name || !email || !department}>
-                  {editingUser ? 'Update Account' : 'Create Account'}
+                <Button variant="outline" onClick={resetForm} disabled={isSaving}>Cancel</Button>
+                <Button onClick={handleSave} disabled={!name || !email || !department || isSaving} className="gap-2">
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSaving ? 'Saving...' : (editingUser ? 'Update Account' : 'Create Account')}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -31,6 +31,7 @@ export interface Asset {
   availableQty: number;
   addedDate: string;
   lastUpdated: string;
+  usageType: 'gunasama' | 'master';
 }
 
 export interface BorrowHistory {
@@ -53,7 +54,7 @@ export interface AssetUnit {
   model: string;
   category: string;
   condition: 'good' | 'damaged' | 'lost';
-  currentStatus: 'available' | 'borrowed' | 'maintenance';
+  currentStatus: 'available' | 'borrowed' | 'maintenance' | 'assigned';
   currentBorrowerId: string;
   currentBorrowerName: string;
   currentRequestId: string;
@@ -61,6 +62,7 @@ export interface AssetUnit {
   purchaseDate?: string;
   notes: string;
   addedDate: string;
+  assignedDate?: string;
 }
 
 export interface BorrowRequestItem {
@@ -101,6 +103,45 @@ export interface BorrowRequest {
   approvedBy?: string;
   notes?: string;
   items: BorrowRequestItem[];
+}
+
+export interface CustodyRecord {
+  custodyId: string;
+  unitId: string;
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  userId: string;
+  userName: string;
+  userDept: string;
+  assignedBy: string;
+  assignedDate: string;
+  status: 'active' | 'revoked';
+  revokedBy?: string;
+  revokedDate?: string;
+  location?: string;
+  notes?: string;
+}
+
+export interface FloorPlan {
+  id: string;
+  name: string;
+  imageUrl: string;
+  addedDate: string;
+}
+
+export interface FloorZone {
+  id: string;
+  floorPlanId: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  portNumber?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  notes?: string;
 }
 
 const JSON_HEADERS = {
@@ -151,7 +192,15 @@ export const Storage = {
     }
   },
   saveCategories: async (categories: AssetCategory[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'categories', data: categories }) }),
-  
+
+  getCustodyRecords: async (): Promise<CustodyRecord[]> => apiFetch<CustodyRecord[]>('/api/custody'),
+  saveCustodyRecords: async (records: CustodyRecord[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'custody', data: records }) }),
+
+  getFloorPlans: async (): Promise<FloorPlan[]> => apiFetch<FloorPlan[]>('/api/floor-plans'),
+  saveFloorPlans: async (floorPlans: FloorPlan[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'floorPlans', data: floorPlans }) }),
+  getFloorZones: async (): Promise<FloorZone[]> => apiFetch<FloorZone[]>('/api/floor-zones'),
+  saveFloorZones: async (zones: FloorZone[]) => apiFetch('/api/bulk', { method: 'POST', body: JSON.stringify({ type: 'floorZones', data: zones }) }),
+
   getSession: (): User | null => {
     const data = localStorage.getItem('it_session');
     return data ? JSON.parse(data) : null;

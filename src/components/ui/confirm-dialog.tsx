@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,20 @@ export function ConfirmDialog({
   description = "This action cannot be undone.",
   onConfirm,
 }: ConfirmDialogProps) {
+  // Radix can leave document.body stuck at pointer-events: none after this dialog closes,
+  // especially when onConfirm is async — nothing on the page is clickable until a refresh.
+  // Once we're closed, if no other modal is genuinely open, clear the stuck lock.
+  useEffect(() => {
+    if (open) return;
+    const timer = setTimeout(() => {
+      const anyModalOpen = document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]');
+      if (!anyModalOpen && document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [open]);
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>

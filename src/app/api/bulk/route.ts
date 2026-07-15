@@ -75,9 +75,10 @@ export async function POST(request: Request) {
           imageUrl: asset.imageUrl,
           status: asset.status,
           availableQty: asset.availableQty,
-          lastUpdated: asset.lastUpdated
+          lastUpdated: asset.lastUpdated,
+          usageType: asset.usageType || 'gunasama'
           // JANGAN letak assetTag di sini supaya Prisma tidak pening semasa proses update
-        }, 
+        },
         create: {
           ...asset // Semasa create buat kali pertama, kita masukkan semua sekali termasuk assetTag
         } 
@@ -166,6 +167,39 @@ export async function POST(request: Request) {
       }
     }));
 
+    return NextResponse.json({ success: true });
+  }
+
+  if (type === 'custody') {
+    const incomingIds = data.map((c: any) => c.custodyId);
+    const db = prisma as any;
+    await db.custodyRecord.deleteMany({ where: { custodyId: { notIn: incomingIds } } });
+    await Promise.all(data.map(async (rec: any) => {
+      await db.custodyRecord.upsert({ where: { custodyId: rec.custodyId }, update: rec, create: rec });
+    }));
+    return NextResponse.json({ success: true });
+  }
+
+  if (type === 'floorPlans') {
+    const incomingIds = data.map((f: any) => f.id);
+    await prisma.floorZone.deleteMany({ where: { floorPlanId: { notIn: incomingIds } } });
+    await prisma.floorPlan.deleteMany({ where: { id: { notIn: incomingIds } } });
+    await Promise.all(data.map(async (fp: any) => {
+      await prisma.floorPlan.upsert({
+        where: { id: fp.id },
+        update: { name: fp.name, imageUrl: fp.imageUrl, addedDate: fp.addedDate },
+        create: fp
+      });
+    }));
+    return NextResponse.json({ success: true });
+  }
+
+  if (type === 'floorZones') {
+    const incomingIds = data.map((z: any) => z.id);
+    await prisma.floorZone.deleteMany({ where: { id: { notIn: incomingIds } } });
+    await Promise.all(data.map(async (zone: any) => {
+      await prisma.floorZone.upsert({ where: { id: zone.id }, update: zone, create: zone });
+    }));
     return NextResponse.json({ success: true });
   }
 

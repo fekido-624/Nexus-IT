@@ -30,8 +30,9 @@ model Asset {
   addedDate   String
   lastUpdated String
   imageUrl    String?
+  usageType   String         @default("gunasama")
   units       AssetUnit[]
-  
+
   items    BorrowRequestItem[]  // ← tambah ni
 }
 
@@ -52,6 +53,7 @@ model AssetUnit {
   notes              String
   addedDate          String
   borrowHistory      String?
+  assignedDate       String?
   asset              Asset   @relation(fields: [assetId], references: [assetId])
 }
 
@@ -91,4 +93,45 @@ model AssetCategory {
   name      String   @unique
   slug      String
   addedDate String
+}
+
+model CustodyRecord {
+  custodyId    String  @id
+  unitId       String
+  assetId      String
+  assetName    String
+  assetTag     String
+  userId       String
+  userName     String
+  userDept     String
+  assignedBy   String
+  assignedDate String
+  status       String
+  revokedBy    String?
+  revokedDate  String?
+  location     String?
+  notes        String?
+}
+
+model FloorPlan {
+  id        String      @id @default(cuid())
+  name      String
+  imageUrl  String
+  addedDate String
+  zones     FloorZone[]
+}
+
+model FloorZone {
+  id               String    @id @default(cuid())
+  floorPlanId      String
+  label            String
+  x                Float
+  y                Float
+  width            Float
+  height           Float
+  portNumber       String?
+  assignedUserId   String?
+  assignedUserName String?
+  notes            String?
+  floorPlan        FloorPlan @relation(fields: [floorPlanId], references: [id])
 }
