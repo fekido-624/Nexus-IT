@@ -70,7 +70,7 @@ export default function UserManagement() {
         setUsers(loadedUsers);
       } catch (error) {
         console.error('Failed to load users:', error);
-        toast({ variant: "destructive", title: "Error", description: "Failed to load users" });
+        toast({ variant: "destructive", title: "Ralat", description: "Gagal memuatkan senarai pengguna" });
       }
     }
     loadUsers();
@@ -139,7 +139,7 @@ export default function UserManagement() {
         });
         await Storage.saveUsers(updated);
         setUsers(updated);
-        toast({ title: "User Updated", description: `Account for ${name} has been updated.` });
+        toast({ title: "Pengguna Dikemaskini", description: `Akaun untuk ${name} telah dikemas kini.` });
       } else {
         const newUser: User = {
           uid: `u-${Date.now()}`,
@@ -153,13 +153,13 @@ export default function UserManagement() {
         const updated = [...currentUsers, newUser];
         await Storage.saveUsers(updated);
         setUsers(updated);
-        toast({ title: "User Created", description: `New account created for ${name}.` });
+        toast({ title: "Pengguna Dicipta", description: `Akaun baru dicipta untuk ${name}.` });
       }
 
       resetForm();
     } catch (error) {
       console.error('Failed to save user:', error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to save user" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menyimpan pengguna" });
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
@@ -198,7 +198,7 @@ export default function UserManagement() {
         (r.status === 'approved' || r.status === 'pending' || r.status === 'returning')
       );
       if (hasActive) {
-        toast({ variant: "destructive", title: "Cannot Delete", description: "User still has active or pending borrow requests." });
+        toast({ variant: "destructive", title: "Tidak Boleh Dipadam", description: "Pengguna ini masih mempunyai permohonan pinjaman aktif atau tertunggu." });
         return;
       }
       const currentUsers = await Storage.getUsers();
@@ -206,9 +206,9 @@ export default function UserManagement() {
       await Storage.saveUsers(updated);
       setUsers(updated);
       setSelectedUserIds(prev => prev.filter(id => id !== deleteTargetId)); // bersihkan dari senarai select jika ada
-      toast({ variant: "destructive", title: "User Deleted", description: "The user account has been removed." });
+      toast({ variant: "destructive", title: "Pengguna Dipadam", description: "Akaun pengguna telah dibuang." });
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to delete user" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memadam pengguna" });
     } finally {
       isDeletingRef.current = false;
       setConfirmOpen(false);
@@ -230,10 +230,10 @@ export default function UserManagement() {
       );
 
       if (hasActive) {
-        toast({ 
-          variant: "destructive", 
-          title: "Cannot Delete Bulk", 
-          description: "One or more selected users still have active or pending borrow requests." 
+        toast({
+          variant: "destructive",
+          title: "Tidak Boleh Dipadam Pukal",
+          description: "Satu atau lebih pengguna terpilih masih mempunyai permohonan pinjaman aktif atau tertunggu."
         });
         return;
       }
@@ -241,15 +241,15 @@ export default function UserManagement() {
       const currentUsers = await Storage.getUsers();
       // Singkirkan semua user terpilih dari database
       const updated = currentUsers.filter(u => !selectedUserIds.includes(u.uid));
-      
+
       await Storage.saveUsers(updated);
       setUsers(updated);
       setSelectedUserIds([]); // Setel padam, kosongkan balik tong pilihan
-      
-      toast({ variant: "destructive", title: "Users Deleted", description: "Selected user accounts have been successfully removed." });
+
+      toast({ variant: "destructive", title: "Pengguna Dipadam", description: "Akaun pengguna terpilih telah berjaya dibuang." });
     } catch (error) {
       console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to execute bulk deletion." });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menjalankan pemadaman pukal." });
     } finally {
       isDeletingRef.current = false;
       setBulkConfirmOpen(false);
@@ -283,7 +283,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
         if (lines.length <= 1) {
-          toast({ variant: "destructive", title: "Error", description: "Fail CSV kosong atau tiada data!" });
+          toast({ variant: "destructive", title: "Ralat", description: "Fail CSV kosong atau tiada data!" });
           return;
         }
 
@@ -341,7 +341,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         }
 
         if (newUsers.length === 0) {
-          toast({ variant: "destructive", title: "Error", description: "Tiada data pengguna sah dijumpai." });
+          toast({ variant: "destructive", title: "Ralat", description: "Tiada data pengguna sah dijumpai." });
           return;
         }
 
@@ -372,19 +372,19 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary">User Management</h1>
-          <p className="text-muted-foreground">Manage staff access and department assignments.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Pengurusan Pengguna</h1>
+          <p className="text-muted-foreground">Urus akses staf dan penetapan jabatan.</p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" onClick={downloadTemplate}>
-            <Download className="h-4 w-4" /> Template CSV
+            <Download className="h-4 w-4" /> Templat CSV
           </Button>
 
           <Button variant="secondary" className="gap-2" disabled={isUploadingCsv} asChild>
             <label className={isUploadingCsv ? "pointer-events-none opacity-50" : "cursor-pointer"}>
               {isUploadingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {isUploadingCsv ? 'Uploading...' : 'Import CSV'}
+              {isUploadingCsv ? 'Memuat naik...' : 'Import CSV'}
               <input
                 type="file"
                 accept=".csv"
@@ -398,32 +398,32 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <Dialog open={isDialogOpen} onOpenChange={(open) => { if(!open) resetForm(); setIsDialogOpen(open); }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
-                <Plus className="h-4 w-4" /> Add New User
+                <Plus className="h-4 w-4" /> Tambah Pengguna Baru
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingUser ? 'Edit User Account' : 'Create New User Account'}</DialogTitle>
+                <DialogTitle>{editingUser ? 'Edit Akaun Pengguna' : 'Cipta Akaun Pengguna Baru'}</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ahmad Fauzi" />
+                  <Label htmlFor="name">Nama Penuh</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="cth. Ahmad Fauzi" />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@gov.my" />
+                  <Label htmlFor="email">Alamat Emel</Label>
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="emel@gov.my" />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Password {editingUser && '(Leave blank to keep current)'}</Label>
+                  <Label htmlFor="password">Kata Laluan {editingUser && '(Biarkan kosong untuk kekalkan yang sedia ada)'}</Label>
                   <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={editingUser ? "••••••••" : "user123"} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="dept">Department</Label>
+                    <Label htmlFor="dept">Jabatan</Label>
                     <Select value={department} onValueChange={setDepartment}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select dept" />
+                        <SelectValue placeholder="Pilih jabatan" />
                       </SelectTrigger>
                       <SelectContent>
                         {currentDepartments.map(dept => (
@@ -433,32 +433,32 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="role">System Role</Label>
+                    <Label htmlFor="role">Peranan Sistem</Label>
                     <Select value={role} onValueChange={(val: any) => setRole(val)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue placeholder="Pilih peranan" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="user">Staff (User)</SelectItem>
-                        <SelectItem value="admin">Administrator</SelectItem>
+                        <SelectItem value="user">Staf (Pengguna)</SelectItem>
+                        <SelectItem value="admin">Pentadbir</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label>Jawatan</Label>
-                    <Input 
-                      value={jawatan} 
-                      onChange={(e) => setJawatan(e.target.value)} 
-                      placeholder="Pegawai IT, Pembantu Tadbir, dll" 
+                    <Input
+                      value={jawatan}
+                      onChange={(e) => setJawatan(e.target.value)}
+                      placeholder="Pegawai IT, Pembantu Tadbir, dll"
                     />
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={resetForm} disabled={isSaving}>Cancel</Button>
+                <Button variant="outline" onClick={resetForm} disabled={isSaving}>Batal</Button>
                 <Button onClick={handleSave} disabled={!name || !email || !department || isSaving} className="gap-2">
                   {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isSaving ? 'Saving...' : (editingUser ? 'Update Account' : 'Create Account')}
+                  {isSaving ? 'Menyimpan...' : (editingUser ? 'Kemaskini Akaun' : 'Cipta Akaun')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -472,22 +472,22 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search by name, email or department..." 
+              <Input
+                placeholder="Cari mengikut nama, emel atau jabatan..."
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             {/* Muncul butang padam pukal hanya jika ada user yang di-tick */}
             {selectedUserIds.length > 0 && (
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 className="gap-2 animate-in fade-in slide-in-from-top-1"
                 onClick={() => setBulkConfirmOpen(true)}
               >
-                <Trash2 className="h-4 w-4" /> Delete Selected ({selectedUserIds.length})
+                <Trash2 className="h-4 w-4" /> Padam Terpilih ({selectedUserIds.length})
               </Button>
             )}
           </div>
@@ -506,17 +506,17 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     onChange={toggleSelectAll}
                   />
                 </TableHead>
-                <TableHead>User Details</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right pr-4">Actions</TableHead>
+                <TableHead>Butiran Pengguna</TableHead>
+                <TableHead>Jabatan</TableHead>
+                <TableHead>Peranan</TableHead>
+                <TableHead className="text-right pr-4">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                    No users found.
+                    Tiada pengguna dijumpai.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -554,7 +554,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                           <ShieldCheck className="h-3 w-3" /> Admin
                         </Badge>
                       ) : (
-                        <Badge variant="secondary">Staff</Badge>
+                        <Badge variant="secondary">Staf</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right pr-4">
@@ -579,8 +579,8 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Delete User?"
-        description="This will permanently remove the user account. This action cannot be undone."
+        title="Padam Pengguna?"
+        description="Tindakan ini akan membuang akaun pengguna secara kekal. Tindakan ini tidak boleh diundur."
         onConfirm={handleDelete}
       />
 
@@ -588,8 +588,8 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       <ConfirmDialog
         open={bulkConfirmOpen}
         onOpenChange={setBulkConfirmOpen}
-        title={`Delete ${selectedUserIds.length} Users?`}
-        description={`This will permanently remove all ${selectedUserIds.length} selected user accounts. This action cannot be undone.`}
+        title={`Padam ${selectedUserIds.length} Pengguna?`}
+        description={`Tindakan ini akan membuang kesemua ${selectedUserIds.length} akaun pengguna terpilih secara kekal. Tindakan ini tidak boleh diundur.`}
         onConfirm={handleBulkDelete}
       />
     </div>

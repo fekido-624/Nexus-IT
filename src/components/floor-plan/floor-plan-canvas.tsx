@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import type { FloorZone } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 interface Rect {
   x: number;
@@ -39,6 +41,9 @@ interface FloorPlanCanvasProps {
 
 const MIN_SIZE = 2; // minimum zone width/height, % of image
 const MOVE_THRESHOLD = 0.3; // % movement below which a drag counts as a click
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.25;
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -62,6 +67,17 @@ export function FloorPlanCanvas({
   const [draft, setDraft] = useState<Rect | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [liveZone, setLiveZone] = useState<Rect & { id: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
+
+  const zoomIn = () => setZoom((z) => clamp(Math.round((z + ZOOM_STEP) * 100) / 100, MIN_ZOOM, MAX_ZOOM));
+  const zoomOut = () => setZoom((z) => clamp(Math.round((z - ZOOM_STEP) * 100) / 100, MIN_ZOOM, MAX_ZOOM));
+  const resetZoom = () => setZoom(1);
+
+  function handleWheel(e: React.WheelEvent) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom((z) => clamp(Math.round((z - e.deltaY * 0.01) * 100) / 100, MIN_ZOOM, MAX_ZOOM));
+  }
 
   function pointFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const rect = containerRef.current!.getBoundingClientRect();
@@ -163,78 +179,103 @@ export function FloorPlanCanvas({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "relative w-full select-none rounded-lg overflow-hidden border bg-muted",
-        editable && "touch-none"
-      )}
-      onPointerDown={handleContainerPointerDown}
-      onPointerMove={handleContainerPointerMove}
-      onPointerUp={handleContainerPointerUp}
-    >
-      <img
-        src={imageUrl}
-        alt="Pelan Lantai"
-        className="w-full h-auto block pointer-events-none"
-        draggable={false}
-      />
+    <div className="relative">
+      <div className="absolute top-2 right-2 z-20 flex items-center gap-1 rounded-lg border bg-background/90 backdrop-blur px-1 py-1 shadow-sm">
+        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={zoom <= MIN_ZOOM} onClick={zoomOut}>
+          <ZoomOut className="h-3.5 w-3.5" />
+        </Button>
+        <span className="text-xs font-medium tabular-nums w-10 text-center select-none">{Math.round(zoom * 100)}%</span>
+        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" disabled={zoom >= MAX_ZOOM} onClick={zoomIn}>
+          <ZoomIn className="h-3.5 w-3.5" />
+        </Button>
+        {zoom !== 1 && (
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={resetZoom} title="Set semula zum">
+            <Maximize className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
 
-      {zones.map((zone) => {
-        const live = liveZone && liveZone.id === zone.id ? liveZone : zone;
-        const occupied = !!zone.assignedUserId;
-        const isMatch = !isSearching || highlightedZoneIds!.includes(zone.id);
-        return (
+      <div
+        className="w-full overflow-auto rounded-lg border bg-muted"
+        style={{ maxHeight: "75vh" }}
+        onWheel={handleWheel}
+      >
+        <div style={{ width: `${zoom * 100}%`, minWidth: "100%" }}>
           <div
-            key={zone.id}
+            ref={containerRef}
             className={cn(
-              "absolute border-2 rounded-md flex items-center justify-center text-center px-1 transition-opacity",
-              occupied
-                ? "bg-primary/20 border-primary"
-                : "bg-muted-foreground/10 border-muted-foreground/40 border-dashed",
-              editable && !drawingMode && moveEnabled && "cursor-move",
-              editable && !drawingMode && !moveEnabled && "cursor-pointer",
-              !editable && "cursor-pointer",
-              isSearching && isMatch && "ring-4 ring-yellow-400 z-10",
-              isSearching && !isMatch && "opacity-25"
+              "relative w-full select-none",
+              editable && "touch-none"
             )}
-            style={{
-              left: `${live.x}%`,
-              top: `${live.y}%`,
-              width: `${live.width}%`,
-              height: `${live.height}%`,
-            }}
-            onPointerDown={(e) => startDrag(e, zone, "move")}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (drawingMode) return;
-              if (!editable || !moveEnabled) onZoneClick?.(zone);
-            }}
+            onPointerDown={handleContainerPointerDown}
+            onPointerMove={handleContainerPointerMove}
+            onPointerUp={handleContainerPointerUp}
           >
-            <span className="text-[10px] md:text-xs font-medium truncate pointer-events-none">
-              {zone.label}
-            </span>
-            {editable && !drawingMode && moveEnabled && (
+            <img
+              src={imageUrl}
+              alt="Pelan Lantai"
+              className="w-full h-auto block pointer-events-none"
+              draggable={false}
+            />
+
+            {zones.map((zone) => {
+              const live = liveZone && liveZone.id === zone.id ? liveZone : zone;
+              const occupied = !!zone.assignedUserId;
+              const isMatch = !isSearching || highlightedZoneIds!.includes(zone.id);
+              return (
+                <div
+                  key={zone.id}
+                  className={cn(
+                    "absolute border-2 rounded-md flex items-center justify-center text-center px-1 transition-opacity",
+                    occupied
+                      ? "bg-primary/20 border-primary"
+                      : "bg-muted-foreground/10 border-muted-foreground/40 border-dashed",
+                    editable && !drawingMode && moveEnabled && "cursor-move",
+                    editable && !drawingMode && !moveEnabled && "cursor-pointer",
+                    !editable && "cursor-pointer",
+                    isSearching && isMatch && "ring-4 ring-yellow-400 z-10",
+                    isSearching && !isMatch && "opacity-25"
+                  )}
+                  style={{
+                    left: `${live.x}%`,
+                    top: `${live.y}%`,
+                    width: `${live.width}%`,
+                    height: `${live.height}%`,
+                  }}
+                  onPointerDown={(e) => startDrag(e, zone, "move")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (drawingMode) return;
+                    if (!editable || !moveEnabled) onZoneClick?.(zone);
+                  }}
+                >
+                  <span className="text-[10px] md:text-xs font-medium truncate pointer-events-none">
+                    {zone.label}
+                  </span>
+                  {editable && !drawingMode && moveEnabled && (
+                    <div
+                      className="absolute -right-1.5 -bottom-1.5 h-3.5 w-3.5 rounded-sm bg-primary border border-background cursor-se-resize touch-none"
+                      onPointerDown={(e) => startDrag(e, zone, "resize")}
+                    />
+                  )}
+                </div>
+              );
+            })}
+
+            {draft && (
               <div
-                className="absolute -right-1.5 -bottom-1.5 h-3.5 w-3.5 rounded-sm bg-primary border border-background cursor-se-resize touch-none"
-                onPointerDown={(e) => startDrag(e, zone, "resize")}
+                className="absolute border-2 border-dashed border-primary bg-primary/10 pointer-events-none"
+                style={{
+                  left: `${draft.x}%`,
+                  top: `${draft.y}%`,
+                  width: `${draft.width}%`,
+                  height: `${draft.height}%`,
+                }}
               />
             )}
           </div>
-        );
-      })}
-
-      {draft && (
-        <div
-          className="absolute border-2 border-dashed border-primary bg-primary/10 pointer-events-none"
-          style={{
-            left: `${draft.x}%`,
-            top: `${draft.y}%`,
-            width: `${draft.width}%`,
-            height: `${draft.height}%`,
-          }}
-        />
-      )}
+        </div>
+      </div>
     </div>
   );
 }

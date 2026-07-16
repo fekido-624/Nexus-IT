@@ -302,7 +302,7 @@ export default function AdminFloorPlanPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Floor Plan</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Pelan Lantai</h1>
           <p className="text-sm text-muted-foreground">Urus pelan lantai pejabat dan tetapkan kedudukan staf serta no. port.</p>
         </div>
         <div className="flex flex-wrap w-full md:w-auto gap-2">

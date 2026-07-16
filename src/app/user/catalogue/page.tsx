@@ -185,7 +185,7 @@ export default function AssetCatalogue() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Asset Catalogue</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Katalog Aset</h1>
           <p className="text-sm text-muted-foreground">Pilih dan pohon peralatan IT sedia ada untuk kegunaan tugasan anda.</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
@@ -229,56 +229,57 @@ export default function AssetCatalogue() {
         ))}
       </div>
 
-      {/* ASSET CARDS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+      {/* ASSET CARDS GRID (2 lajur padat di mobile supaya lebih banyak kelihatan sekali imbas) */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
         {filteredAssets.map((asset) => {
           const cartItem = getCartItem(asset.assetId);
           const inCart = isInCart(asset.assetId);
           const unavailable = asset.status !== 'available' || asset.availableQty <= 0;
 
           return (
-            <Card key={asset.assetId} className={`group hover:shadow-xl transition-all border border-muted/60 dark:border-muted/20 shadow-sm rounded-2xl overflow-hidden flex flex-col ${inCart ? 'ring-2 ring-primary border-transparent' : ''}`}>
-              <div className="h-44 bg-muted/40 dark:bg-muted/10 flex items-center justify-center relative overflow-hidden border-b border-muted/20">
+            <Card key={asset.assetId} className={`group hover:shadow-xl transition-all border border-muted/60 dark:border-muted/20 shadow-sm rounded-xl sm:rounded-2xl overflow-hidden flex flex-col ${inCart ? 'ring-2 ring-primary border-transparent' : ''}`}>
+              <div className="h-24 sm:h-36 md:h-44 bg-muted/40 dark:bg-muted/10 flex items-center justify-center relative overflow-hidden border-b border-muted/20">
                 {asset.imageUrl ? (
                   <img src={asset.imageUrl} alt={asset.model} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 ) : (
-                  <div className="group-hover:scale-110 transition-transform duration-300">
+                  <div className="group-hover:scale-110 transition-transform duration-300 scale-75 sm:scale-100">
                     {getCategoryIcon(asset.category)}
                   </div>
                 )}
-                <div className="absolute top-3 right-3">
-                  <Badge className={`shadow-sm border-none font-semibold ${!unavailable ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-destructive'}`}>
+                <div className="absolute top-1.5 right-1.5 sm:top-3 sm:right-3">
+                  <Badge className={`shadow-sm border-none font-semibold text-[9px] px-1.5 py-0.5 sm:text-xs sm:px-2.5 sm:py-1 ${!unavailable ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-destructive'}`}>
                     {!unavailable ? `Sedia Ada (${asset.availableQty})` : 'Habis Pinjam'}
                   </Badge>
                 </div>
                 {inCart && (
-                  <div className="absolute top-3 left-3 bg-primary text-primary-foreground rounded-full p-1 shadow-md scale-110">
+                  <div className="absolute top-1.5 left-1.5 sm:top-3 sm:left-3 bg-primary text-primary-foreground rounded-full p-1 shadow-md scale-90 sm:scale-110">
                     <Check className="h-3 w-3 stroke-[3]" />
                   </div>
                 )}
               </div>
-              <CardHeader className="p-4 pb-2 space-y-1">
-                <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider w-fit rounded-md bg-muted text-muted-foreground">{asset.category}</Badge>
-                <CardTitle className="text-lg font-bold line-clamp-1 group-hover:text-primary transition-colors">{asset.brand} {asset.model}</CardTitle>
+              <CardHeader className="p-2.5 sm:p-4 pb-1 sm:pb-2 space-y-0.5 sm:space-y-1">
+                <Badge variant="secondary" className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider w-fit rounded-md bg-muted text-muted-foreground">{asset.category}</Badge>
+                <CardTitle className="text-xs sm:text-lg font-bold line-clamp-1 group-hover:text-primary transition-colors">{asset.brand} {asset.model}</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0 flex-1">
+              <CardContent className="hidden sm:block p-4 pt-0 flex-1">
                 <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 leading-relaxed">{asset.description || 'Tiada spesifikasi tambahan diberikan.'}</p>
               </CardContent>
-              <CardFooter className="p-4 border-t bg-muted/10">
+              <CardFooter className="p-2.5 sm:p-4 border-t bg-muted/10 mt-auto">
                 {inCart && cartItem ? (
                   /* KAWALAN KUANTITI DI BESARKAN UNTUK MOBILE (THUMB FRIENDLY) */
-                  <div className="w-full flex items-center justify-between gap-1 bg-background border rounded-xl p-1 shadow-inner">
-                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-8 md:w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => updateQuantity(asset.assetId, cartItem.quantity - 1)}>
-                      <Minus className="h-4 w-4 md:h-3 md:w-3 stroke-[2.5]" />
+                  <div className="w-full flex items-center justify-between gap-1 bg-background border rounded-lg sm:rounded-xl p-0.5 sm:p-1 shadow-inner">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-10 sm:w-10 md:h-8 md:w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => updateQuantity(asset.assetId, cartItem.quantity - 1)}>
+                      <Minus className="h-3 w-3 sm:h-4 sm:w-4 md:h-3 md:w-3 stroke-[2.5]" />
                     </Button>
-                    <span className="flex-1 text-center font-bold text-sm md:text-base text-foreground">{cartItem.quantity} Unit</span>
-                    <Button size="icon" variant="ghost" className="h-10 w-10 md:h-8 md:w-8 rounded-lg text-primary hover:bg-primary/10" onClick={() => addToCart(asset)}>
-                      <Plus className="h-4 w-4 md:h-3 md:w-3 stroke-[2.5]" />
+                    <span className="flex-1 text-center font-bold text-xs sm:text-sm md:text-base text-foreground">{cartItem.quantity}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 sm:h-10 sm:w-10 md:h-8 md:w-8 rounded-lg text-primary hover:bg-primary/10" onClick={() => addToCart(asset)}>
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 md:h-3 md:w-3 stroke-[2.5]" />
                     </Button>
                   </div>
                 ) : (
-                  <Button className="w-full gap-2 h-11 md:h-10 rounded-xl font-semibold shadow-sm text-sm" disabled={unavailable} onClick={() => addToCart(asset)}>
-                    <Plus className="h-4 w-4 stroke-[2.5]" /> Tambah ke Bakul
+                  <Button className="w-full gap-1 sm:gap-2 h-8 sm:h-11 md:h-10 rounded-lg sm:rounded-xl font-semibold shadow-sm text-[11px] sm:text-sm px-2" disabled={unavailable} onClick={() => addToCart(asset)}>
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 stroke-[2.5] shrink-0" />
+                    <span className="truncate">Tambah</span>
                   </Button>
                 )}
               </CardFooter>

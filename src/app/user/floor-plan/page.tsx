@@ -63,7 +63,7 @@ export default function UserFloorPlanPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Floor Plan</h1>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Pelan Lantai</h1>
         <p className="text-sm text-muted-foreground">Peta pejabat — klik meja/bilik untuk lihat siapa duduk dan no. port internet.</p>
       </div>
 
@@ -132,7 +132,7 @@ export default function UserFloorPlanPage() {
                 {selectedZone?.assignedUserName ? (
                   <p className="text-sm font-medium">{selectedZone.assignedUserName}</p>
                 ) : (
-                  <Badge variant="outline">Kosong / Vacant</Badge>
+                  <Badge variant="outline">Kosong</Badge>
                 )}
               </div>
             </div>

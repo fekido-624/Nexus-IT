@@ -17,17 +17,17 @@ export function BottomNav() {
   if (!user) return null;
 
   const adminLinks = [
-    { href: '/admin/dashboard', label: 'Dash', icon: LayoutDashboard },
-    { href: '/admin/assets', label: 'Assets', icon: Package },
-    { href: '/admin/requests', label: 'Reqs', icon: ClipboardList },
+    { href: '/admin/dashboard', label: 'Papan', icon: LayoutDashboard },
+    { href: '/admin/assets', label: 'Aset', icon: Package },
+    { href: '/admin/requests', label: 'Pinjam', icon: ClipboardList },
     { href: '/admin/custody', label: 'Jagaan', icon: UserCheck },
-    { href: '/admin/users', label: 'Users', icon: Users },
+    { href: '/admin/users', label: 'Pengguna', icon: Users },
     { href: '/admin/floor-plan', label: 'Peta', icon: MapPin },
   ];
 
   const userLinks = [
-    { href: '/user/catalogue', label: 'Search', icon: Search },
-    { href: '/user/my-requests', label: 'My Reqs', icon: BookOpen },
+    { href: '/user/catalogue', label: 'Cari', icon: Search },
+    { href: '/user/my-requests', label: 'Pinjaman', icon: BookOpen },
     { href: '/user/floor-plan', label: 'Peta', icon: MapPin },
   ];
 
@@ -62,7 +62,7 @@ export function BottomNav() {
         className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-destructive min-w-0"
       >
         <LogOut className="h-5 w-5" />
-        <span className="text-[9px] font-medium leading-none">Exit</span>
+        <span className="text-[9px] font-medium leading-none">Keluar</span>
       </button>
 
       <ChangePasswordDialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen} user={user} />

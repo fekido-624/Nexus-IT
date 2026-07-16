@@ -47,12 +47,12 @@ export default function MyRequests() {
       );
       await Storage.saveRequests(updated);
       toast({
-        title: 'Return Initiated',
-        description: 'Admin will review and approve your return once the asset is received.',
+        title: 'Pemulangan Dimulakan',
+        description: 'Admin akan menyemak dan meluluskan pemulangan anda selepas aset diterima.',
       });
       setRequests(updated.filter(r => r.userId === user!.uid).reverse());
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to initiate return." });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memulakan proses pemulangan." });
     } finally {
       isReturningRef.current = false;
       setReturningRequestId(null);
@@ -66,7 +66,7 @@ export default function MyRequests() {
     try {
       await printBorangKEWPA9(req, user!, [user!]);
     } catch {
-      toast({ variant: "destructive", title: "Error", description: "Failed to generate the form." });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menjana borang." });
     } finally {
       isPrintingRef.current = false;
       setPrintingRequestId(null);
@@ -82,13 +82,13 @@ export default function MyRequests() {
   const getStatusBadge = (status: string, returnDate?: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const isOverdue = status === 'approved' && returnDate && returnDate < todayStr;
-    if (isOverdue) return <Badge variant="destructive" className="animate-pulse flex items-center gap-1 w-fit"><CalendarClock className="h-3 w-3" /> Overdue</Badge>;
+    if (isOverdue) return <Badge variant="destructive" className="animate-pulse flex items-center gap-1 w-fit"><CalendarClock className="h-3 w-3" /> Tertunggak</Badge>;
     switch (status) {
-      case 'approved': return <Badge className="bg-green-500 flex items-center gap-1 w-fit"><CheckCircle2 className="h-3 w-3" /> Approved</Badge>;
-      case 'pending': return <Badge className="bg-yellow-500 flex items-center gap-1 w-fit"><Clock className="h-3 w-3" /> Pending</Badge>;
-      case 'returning': return <Badge className="bg-orange-400 flex items-center gap-1 w-fit"><RefreshCw className="h-3 w-3 animate-spin" /> Returning</Badge>;
-      case 'rejected': return <Badge className="bg-red-500 flex items-center gap-1 w-fit"><XCircle className="h-3 w-3" /> Rejected</Badge>;
-      case 'returned': return <Badge className="bg-blue-500 flex items-center gap-1 w-fit"><CheckCircle2 className="h-3 w-3" /> Returned</Badge>;
+      case 'approved': return <Badge className="bg-green-500 flex items-center gap-1 w-fit"><CheckCircle2 className="h-3 w-3" /> Diluluskan</Badge>;
+      case 'pending': return <Badge className="bg-yellow-500 flex items-center gap-1 w-fit"><Clock className="h-3 w-3" /> Menunggu</Badge>;
+      case 'returning': return <Badge className="bg-orange-400 flex items-center gap-1 w-fit"><RefreshCw className="h-3 w-3 animate-spin" /> Dalam Pemulangan</Badge>;
+      case 'rejected': return <Badge className="bg-red-500 flex items-center gap-1 w-fit"><XCircle className="h-3 w-3" /> Ditolak</Badge>;
+      case 'returned': return <Badge className="bg-blue-500 flex items-center gap-1 w-fit"><CheckCircle2 className="h-3 w-3" /> Dipulangkan</Badge>;
       default: return <Badge variant="secondary">{status}</Badge>;
     }
   };
@@ -96,8 +96,8 @@ export default function MyRequests() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">My Requests</h1>
-        <p className="text-muted-foreground">Monitor the status of your equipment borrow history.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Permohonan Saya</h1>
+        <p className="text-muted-foreground">Pantau status sejarah pinjaman peralatan anda.</p>
       </div>
 
       {myCustody.length > 0 && (
@@ -147,11 +147,11 @@ export default function MyRequests() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead>Request</TableHead>
-                <TableHead>Items</TableHead>
-                <TableHead>Borrow Period</TableHead>
+                <TableHead>Permohonan</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Tempoh Pinjaman</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -160,7 +160,7 @@ export default function MyRequests() {
                   <TableCell colSpan={5} className="h-40 text-center">
                     <div className="flex flex-col items-center justify-center text-muted-foreground">
                       <ClipboardList className="h-10 w-10 mb-2 opacity-20" />
-                      <p>You haven't made any requests yet.</p>
+                      <p>Anda belum membuat sebarang permohonan.</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -185,7 +185,7 @@ export default function MyRequests() {
                             </div>
                           ))}
                           {req.items.length > 2 && (
-                            <span className="text-[10px] text-muted-foreground">+{req.items.length - 2} more</span>
+                            <span className="text-[10px] text-muted-foreground">+{req.items.length - 2} lagi</span>
                           )}
                         </div>
                       </TableCell>
@@ -193,7 +193,7 @@ export default function MyRequests() {
                         <div className="text-xs">
                           <p>{req.borrowDate}</p>
                           <p className={req.status === 'approved' && req.returnDate < new Date().toISOString().split('T')[0] ? 'text-destructive font-bold' : 'text-muted-foreground'}>
-                            to {req.returnDate}
+                            hingga {req.returnDate}
                           </p>
                         </div>
                       </TableCell>
@@ -209,11 +209,11 @@ export default function MyRequests() {
                               className="gap-1"
                             >
                               {returningRequestId === req.requestId && <Loader2 className="h-3 w-3 animate-spin" />}
-                              {returningRequestId === req.requestId ? 'Processing...' : 'Return Asset'}
+                              {returningRequestId === req.requestId ? 'Memproses...' : 'Pulangkan Aset'}
                             </Button>
                           )}
                           {req.status === 'returning' && (
-                            <span className="text-xs text-muted-foreground italic">Awaiting Admin</span>
+                            <span className="text-xs text-muted-foreground italic">Menunggu Admin</span>
                           )}
                           {(req.status === 'approved' || req.status === 'returned' || req.status === 'pending') && (
                             <Button
@@ -224,9 +224,9 @@ export default function MyRequests() {
                               onClick={() => handlePrintBorang(req)}
                             >
                               {printingRequestId === req.requestId ? (
-                                <><Loader2 className="h-3 w-3 animate-spin" /> Generating...</>
+                                <><Loader2 className="h-3 w-3 animate-spin" /> Menjana...</>
                               ) : (
-                                <><Printer className="h-3 w-3" /> Print</>
+                                <><Printer className="h-3 w-3" /> Cetak</>
                               )}
                             </Button>
                           )}
@@ -241,7 +241,7 @@ export default function MyRequests() {
                     {expandedReqs.includes(req.requestId) && (
                       <TableRow key={`${req.requestId}-expanded`}>
                         <TableCell colSpan={5} className="bg-muted/20 px-6 py-3">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Items in this request:</p>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Item dalam permohonan ini:</p>
                           <div className="space-y-2">
                             {req.items.map((item, idx) => (
                               <div key={item.itemId} className="flex items-center gap-3 text-xs">
@@ -250,10 +250,10 @@ export default function MyRequests() {
                                 {item.assignedSerialNumber ? (
                                   <code className="bg-muted px-1 rounded text-[10px]">{item.assignedSerialNumber}</code>
                                 ) : (
-                                  <span className="text-muted-foreground italic text-[10px]">Pending assignment</span>
+                                  <span className="text-muted-foreground italic text-[10px]">Menunggu penetapan unit</span>
                                 )}
                                 <Badge className={`text-[10px] ${item.status === 'approved' ? 'bg-green-500' : item.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'}`}>
-                                  {item.status}
+                                  {item.status === 'approved' ? 'Diluluskan' : item.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
                                 </Badge>
                               </div>
                             ))}
@@ -272,8 +272,8 @@ export default function MyRequests() {
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex gap-3 items-start">
         <AlertCircle className="h-5 w-5 text-primary shrink-0" />
         <div className="text-sm">
-          <p className="font-bold text-primary">Need technical help?</p>
-          <p className="text-muted-foreground">If you encounter issues with your equipment, please contact the IT Helpdesk immediately at extension 5555.</p>
+          <p className="font-bold text-primary">Perlukan bantuan teknikal?</p>
+          <p className="text-muted-foreground">Jika anda menghadapi masalah dengan peralatan anda, sila hubungi Helpdesk IT dengan segera di sambungan 5555.</p>
         </div>
       </div>
     </div>

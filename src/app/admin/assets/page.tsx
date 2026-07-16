@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Storage, Asset, AssetUnit, AssetCategory, CustodyRecord, User } from '@/lib/storage';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Pencil, Trash2, Search, Upload, Download, X, Tag, Settings2, Loader2, UserCheck, CheckCircle2 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Pencil, Trash2, Search, Upload, Download, X, Tag, Settings2, Loader2, UserCheck, CheckCircle2, ChevronDown, ChevronRight, Package, PackageCheck, ArrowUpRight, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ export default function AssetManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedUsageType, setSelectedUsageType] = useState('all');
+  const [expandedAssetIds, setExpandedAssetIds] = useState<string[]>([]);
   
   // Dialog konfirmasi padam
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -709,28 +710,51 @@ export default function AssetManagement() {
     const matchesSearch =
       (a.brand || '').toLowerCase().includes(term) ||
       (a.model || '').toLowerCase().includes(term) ||
-      (a.category || '').toLowerCase().includes(term);
+      (a.category || '').toLowerCase().includes(term) ||
+      units.some(u => u.assetId === a.assetId && (u.assetTag || '').toLowerCase().includes(term));
     const matchesCategory = selectedCategory === 'all' || a.category.toLowerCase() === selectedCategory.toLowerCase();
     const matchesUsageType = selectedUsageType === 'all' || (a.usageType || 'gunasama') === selectedUsageType;
     return matchesSearch && matchesCategory && matchesUsageType;
   });
 
-  // Susun pengelompokan accordion secara dinamik berdasarkan senarai kategori pangkalan data terkini
-  const groupedAssets = categories.reduce((acc, cat) => {
-    const catAssets = filteredAssets.filter(a => a.category.toLowerCase() === cat.name.toLowerCase());
-    if (catAssets.length > 0) acc[cat.name] = catAssets;
-    return acc;
-  }, {} as Record<string, Asset[]>);
-
   const getUnitsByAsset = (assetId: string) => units.filter(u => u.assetId === assetId);
+
+  // Auto-expand hanya asset yang unit siri/tag-nya sepadan dengan carian, supaya
+  // hasil carian terus kelihatan tanpa perlu buka setiap row secara manual.
+  useEffect(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (term) {
+      const matchingAssetIds = assets
+        .filter(a => units.some(u => u.assetId === a.assetId && (u.assetTag || '').toLowerCase().includes(term)))
+        .map(a => a.assetId);
+      if (matchingAssetIds.length > 0) setExpandedAssetIds(matchingAssetIds);
+    }
+  }, [searchTerm]);
+
+  const toggleExpanded = (assetId: string) => {
+    setExpandedAssetIds(prev => prev.includes(assetId) ? prev.filter(id => id !== assetId) : [...prev, assetId]);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm(''); setSelectedCategory('all'); setSelectedUsageType('all');
+  };
+  const hasActiveFilters = !!searchTerm || selectedCategory !== 'all' || selectedUsageType !== 'all';
+
+  const stats = {
+    totalAssets: assets.length,
+    totalUnits: units.length,
+    available: units.filter(u => u.currentStatus === 'available').length,
+    borrowed: units.filter(u => u.currentStatus === 'borrowed').length,
+    assigned: units.filter(u => u.currentStatus === 'assigned').length,
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'available': return <Badge className="bg-green-500 text-[10px]">Available</Badge>;
-      case 'borrowed': return <Badge className="bg-blue-500 text-[10px]">Borrowed</Badge>;
-      case 'maintenance': return <Badge className="bg-orange-500 text-[10px]">Maintenance</Badge>;
-      case 'assigned': return <Badge className="bg-purple-600 text-[10px]">Hak Jagaan</Badge>;
-      default: return <Badge variant="secondary" className="text-[10px]">{status}</Badge>;
+      case 'available': return <Badge className="bg-green-500 text-xs">Tersedia</Badge>;
+      case 'borrowed': return <Badge className="bg-blue-500 text-xs">Dipinjam</Badge>;
+      case 'maintenance': return <Badge className="bg-orange-500 text-xs">Penyelenggaraan</Badge>;
+      case 'assigned': return <Badge className="bg-purple-600 text-xs">Hak Jagaan</Badge>;
+      default: return <Badge variant="secondary" className="text-xs">{status}</Badge>;
     }
   };
 
@@ -739,160 +763,226 @@ export default function AssetManagement() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Asset Management</h1>
-          <p className="text-sm text-muted-foreground">Register assets and manage individual unit serial numbers.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Pengurusan Aset</h1>
+          <p className="text-sm text-muted-foreground">Daftar aset dan urus nombor siri unit individu.</p>
         </div>
-        <div className="flex flex-wrap w-full md:w-auto gap-2">
+        <div className="flex w-full md:w-auto gap-2">
           <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-          
-          <Button variant="outline" className="flex-1 md:flex-none gap-2" onClick={handleDownloadTemplate}>
-            <Download className="h-4 w-4" /> Template CSV
-          </Button>
-          
-          <Button
-            variant="outline"
-            className="flex-1 md:flex-none gap-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-            disabled={isUploadingCsv}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {isUploadingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {isUploadingCsv ? 'Uploading...' : 'Upload CSV'}
-          </Button>
-          
-          <Button className="w-full md:w-auto gap-2" onClick={() => setIsAssetDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Register New Asset
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex-1 md:flex-none gap-2" disabled={isUploadingCsv}>
+                {isUploadingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                {isUploadingCsv ? 'Memuat naik...' : 'Import / Eksport'}
+                {!isUploadingCsv && <ChevronDown className="h-3.5 w-3.5 opacity-60" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDownloadTemplate} className="gap-2">
+                <Download className="h-4 w-4" /> Muat Turun Templat
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
+                <Upload className="h-4 w-4" /> Muat Naik CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button className="flex-1 md:flex-none gap-2" onClick={() => setIsAssetDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> Daftar Aset Baru
           </Button>
         </div>
       </div>
 
-      {/* SEARCH & FILTERS */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search assets..." className="pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            </div>
-            <div className="w-full md:w-48">
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(cat => <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full md:w-48">
-              <Select value={selectedUsageType} onValueChange={setSelectedUsageType}>
-                <SelectTrigger><SelectValue placeholder="Semua Jenis" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Jenis</SelectItem>
-                  <SelectItem value="gunasama">Gunasama</SelectItem>
-                  <SelectItem value="master">Aset Master</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* STAT CARDS */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Jumlah Aset</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.totalAssets}</div></CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-slate-400">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Jumlah Unit</CardTitle>
+            <Tag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold">{stats.totalUnits}</div></CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tersedia</CardTitle>
+            <PackageCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold text-green-600">{stats.available}</div></CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Dipinjam</CardTitle>
+            <ArrowUpRight className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold text-blue-600">{stats.borrowed}</div></CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-purple-600">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hak Jagaan</CardTitle>
+            <UserCheck className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-bold text-purple-600">{stats.assigned}</div></CardContent>
+        </Card>
+      </div>
 
-      {/* ACCORDION DATA JADUAL */}
+      {/* SEARCH & FILTERS */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Cari jenama, model atau nombor siri/tag..." className="pl-9 bg-background" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </div>
+        <div className="w-full md:w-48">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="bg-background"><SelectValue placeholder="Semua Kategori" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Kategori</SelectItem>
+              {categories.map(cat => <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full md:w-48">
+          <Select value={selectedUsageType} onValueChange={setSelectedUsageType}>
+            <SelectTrigger className="bg-background"><SelectValue placeholder="Semua Jenis" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Jenis</SelectItem>
+              <SelectItem value="gunasama">Gunasama</SelectItem>
+              <SelectItem value="master">Aset Master</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" className="gap-1 text-muted-foreground" onClick={clearFilters}>
+            <X className="h-4 w-4" /> Kosongkan
+          </Button>
+        )}
+      </div>
+
+      {/* FLAT ASSET TABLE */}
       <Card className="shadow-md">
         <CardContent className="p-0">
-          {Object.keys(groupedAssets).length === 0 ? (
-            <div className="h-32 flex items-center justify-center text-muted-foreground">No assets found.</div>
+          {filteredAssets.length === 0 ? (
+            <div className="h-32 flex items-center justify-center text-muted-foreground">Tiada aset dijumpai.</div>
           ) : (
-            <Accordion type="multiple" className="w-full">
-              {Object.entries(groupedAssets).map(([catName, catAssets]) => (
-                <AccordionItem key={catName} value={catName} className="border-b last:border-b-0">
-                  <AccordionTrigger className="hover:no-underline px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-sm">{catName}</span>
-                      <Badge variant="outline" className="text-xs">{catAssets.length}</Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-0 py-0">
-                    {catAssets.map(asset => {
-                      const assetUnits = getUnitsByAsset(asset.assetId);
-                      return (
-                        <div key={asset.assetId} className="border-t px-6 py-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              {asset.imageUrl && <img src={asset.imageUrl} alt={asset.model} className="w-10 h-10 object-cover rounded" />}
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-semibold text-sm">{asset.brand} {asset.model}</p>
-                                  {asset.usageType === 'master' ? (
-                                    <Badge className="bg-purple-600 text-[10px]">Aset Master</Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="text-[10px]">Gunasama</Badge>
-                                  )}
-                                </div>
-                                <p className="text-[10px] text-muted-foreground">{asset.description}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">{assetUnits.length} unit(s)</Badge>
-                              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => handleOpenAddUnit(asset)}>
-                                <Plus className="h-3 w-3" /> Add Unit
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditAsset(asset)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setConfirmType('asset'); setDeleteTargetId(asset.assetId); setConfirmOpen(true); }}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="text-xs">Aset</TableHead>
+                  <TableHead className="text-xs">Kategori</TableHead>
+                  <TableHead className="text-xs">Jenis</TableHead>
+                  <TableHead className="text-xs">Unit</TableHead>
+                  <TableHead className="text-right text-xs">Tindakan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAssets.map(asset => {
+                  const assetUnits = getUnitsByAsset(asset.assetId);
+                  const availableCount = assetUnits.filter(u => u.currentStatus === 'available').length;
+                  const isExpanded = expandedAssetIds.includes(asset.assetId);
+                  return (
+                    <React.Fragment key={asset.assetId}>
+                      <TableRow className="cursor-pointer hover:bg-muted/20" onClick={() => toggleExpanded(asset.assetId)}>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {asset.imageUrl && <img src={asset.imageUrl} alt={asset.model} className="w-10 h-10 object-cover rounded" />}
+                            <div>
+                              <p className="font-semibold text-sm">{asset.brand} {asset.model}</p>
+                              <p className="text-xs text-muted-foreground">{asset.description}</p>
                             </div>
                           </div>
-
-                          {assetUnits.length > 0 && (
-                            <div className="rounded-lg border overflow-hidden">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow className="bg-muted/30">
-                                    <TableHead className="text-xs">Serial / Tag</TableHead>
-                                    <TableHead className="text-xs">Status</TableHead>
-                                    <TableHead className="text-xs">Condition</TableHead>
-                                    <TableHead className="text-xs">Current User</TableHead>
-                                    <TableHead className="text-right text-xs">Actions</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {assetUnits.map(unit => (
-                                    <TableRow key={unit.unitId}>
-                                      <TableCell className="font-mono text-xs font-bold">{unit.assetTag}</TableCell>
-                                      <TableCell>{getStatusBadge(unit.currentStatus)}</TableCell>
-                                      <TableCell><Badge variant="outline" className="text-[10px] capitalize">{unit.condition}</Badge></TableCell>
-                                      <TableCell className="text-xs">{unit.currentBorrowerName || <span className="text-muted-foreground italic">—</span>}</TableCell>
-                                      <TableCell className="text-right">
-                                        <div className="flex justify-end gap-1">
-                                          {asset.usageType === 'master' && unit.currentStatus === 'available' && unit.condition === 'good' && (
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="h-7 text-[10px] gap-1 text-purple-700 border-purple-300 hover:bg-purple-50"
-                                              onClick={() => handleOpenCustody(unit)}
-                                            >
-                                              <UserCheck className="h-3 w-3" /> Beri Hak Jagaan
-                                            </Button>
-                                          )}
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditUnit(asset, unit)}><Pencil className="h-3 w-3" /></Button>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setConfirmType('unit'); setDeleteTargetUnit(unit); setConfirmOpen(true); }}><Trash2 className="h-3 w-3" /></Button>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
+                        </TableCell>
+                        <TableCell className="text-sm">{asset.category}</TableCell>
+                        <TableCell>
+                          {asset.usageType === 'master' ? (
+                            <Badge className="bg-purple-600 text-xs">Aset Master</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">Gunasama</Badge>
                           )}
-                        </div>
-                      );
-                    })}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{availableCount} tersedia / {assetUnits.length} jumlah</Badge>
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => handleOpenAddUnit(asset)}>
+                              <Plus className="h-3 w-3" /> Tambah Unit
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditAsset(asset)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setConfirmType('asset'); setDeleteTargetId(asset.assetId); setConfirmOpen(true); }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {isExpanded && (
+                        <TableRow className="bg-muted/10 hover:bg-muted/10">
+                          <TableCell colSpan={6} className="p-0">
+                            {assetUnits.length === 0 ? (
+                              <div className="py-4 text-center text-xs text-muted-foreground">Belum ada unit didaftarkan.</div>
+                            ) : (
+                              <div className="m-3 rounded-lg border overflow-hidden bg-background">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-muted/30">
+                                      <TableHead className="text-xs">Siri / Tag</TableHead>
+                                      <TableHead className="text-xs">Status</TableHead>
+                                      <TableHead className="text-xs">Keadaan</TableHead>
+                                      <TableHead className="text-xs">Pengguna Semasa</TableHead>
+                                      <TableHead className="text-right text-xs">Tindakan</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {assetUnits.map(unit => (
+                                      <TableRow key={unit.unitId}>
+                                        <TableCell className="font-mono text-xs font-bold">{unit.assetTag}</TableCell>
+                                        <TableCell>{getStatusBadge(unit.currentStatus)}</TableCell>
+                                        <TableCell><Badge variant="outline" className="text-xs capitalize">{unit.condition}</Badge></TableCell>
+                                        <TableCell className="text-xs">{unit.currentBorrowerName || <span className="text-muted-foreground italic">—</span>}</TableCell>
+                                        <TableCell className="text-right">
+                                          <div className="flex justify-end gap-1">
+                                            {asset.usageType === 'master' && unit.currentStatus === 'available' && unit.condition === 'good' && (
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs gap-1 text-purple-700 border-purple-300 hover:bg-purple-50"
+                                                onClick={() => handleOpenCustody(unit)}
+                                              >
+                                                <UserCheck className="h-3 w-3" /> Beri Hak Jagaan
+                                              </Button>
+                                            )}
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditUnit(asset, unit)}><Pencil className="h-3 w-3" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { setConfirmType('unit'); setDeleteTargetUnit(unit); setConfirmOpen(true); }}><Trash2 className="h-3 w-3" /></Button>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -900,11 +990,11 @@ export default function AssetManagement() {
       {/* ASSET DIALOG */}
       <Dialog open={isAssetDialogOpen} onOpenChange={(open) => { if (!open) resetAssetForm(); setIsAssetDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] md:max-w-md rounded-xl">
-          <DialogHeader><DialogTitle>{editingAsset ? 'Edit Asset' : 'Register New Asset'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingAsset ? 'Edit Aset' : 'Daftar Aset Baru'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <Label>Asset Type (Category)</Label>
+                <Label>Kategori Aset</Label>
                 {/* TOMBOL MODAL URUS CUSTOM CATEGORY */}
                 <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs gap-1" onClick={() => setIsCategoryManagerOpen(true)}>
                   <Settings2 className="h-3 w-3" /> Urus Kategori
@@ -931,12 +1021,12 @@ export default function AssetManagement() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2"><Label>Brand</Label><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Lenovo" /></div>
+              <div className="grid gap-2"><Label>Jenama</Label><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Lenovo" /></div>
               <div className="grid gap-2"><Label>Model</Label><Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Thinkpad P15" /></div>
             </div>
-            <div className="grid gap-2"><Label>Specification</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="RAM, Processor, Storage, dll." /></div>
+            <div className="grid gap-2"><Label>Spesifikasi</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="RAM, Pemproses, Storan, dll." /></div>
             <div className="grid gap-2">
-              <Label>Asset Image</Label>
+              <Label>Imej Aset</Label>
               <div className="flex flex-col gap-2">
                 {imagePreview && (
                   <div className="relative w-full h-40 bg-muted rounded-lg overflow-hidden">
@@ -945,15 +1035,15 @@ export default function AssetManagement() {
                   </div>
                 )}
                 <input id="image" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                <Button type="button" variant="outline" className="w-full gap-2" onClick={() => document.getElementById('image')?.click()}><Upload className="h-4 w-4" /> Upload Image</Button>
+                <Button type="button" variant="outline" className="w-full gap-2" onClick={() => document.getElementById('image')?.click()}><Upload className="h-4 w-4" /> Muat Naik Imej</Button>
               </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={resetAssetForm} disabled={isSavingAsset}>Cancel</Button>
+            <Button variant="outline" onClick={resetAssetForm} disabled={isSavingAsset}>Batal</Button>
             <Button onClick={handleSaveAsset} disabled={!category || !brand || !model || isSavingAsset} className="gap-2">
               {isSavingAsset && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSavingAsset ? 'Saving...' : (editingAsset ? 'Update' : 'Register')}
+              {isSavingAsset ? 'Menyimpan...' : (editingAsset ? 'Kemaskini' : 'Daftar')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1000,33 +1090,33 @@ export default function AssetManagement() {
       {/* UNIT DIALOG */}
       <Dialog open={isUnitDialogOpen} onOpenChange={(open) => { if (!open) resetUnitForm(); setIsUnitDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] md:max-w-sm rounded-xl">
-          <DialogHeader><DialogTitle>{editingUnit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingUnit ? 'Edit Unit' : 'Tambah Unit Baru'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="bg-muted/50 p-3 rounded-lg text-sm">
-              <p><strong>Asset:</strong> {selectedAsset?.brand} {selectedAsset?.model}</p>
-              <p><strong>Category:</strong> {selectedAsset?.category}</p>
+              <p><strong>Aset:</strong> {selectedAsset?.brand} {selectedAsset?.model}</p>
+              <p><strong>Kategori:</strong> {selectedAsset?.category}</p>
             </div>
             <div className="grid gap-2">
-              <Label>Serial Number / Asset Tag</Label>
+              <Label>Nombor Siri / Tag Aset</Label>
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input className="pl-9" value={unitSerial} onChange={(e) => setUnitSerial(e.target.value)} placeholder="SN-001 / HF-001" />
               </div>
             </div>
             <div className="grid gap-2">
-              <Label>Condition</Label>
+              <Label>Keadaan</Label>
               <Select value={unitCondition} onValueChange={(val: any) => setUnitCondition(val)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="good">Good / Functional</SelectItem>
-                  <SelectItem value="damaged">Damaged / Broken</SelectItem>
-                  <SelectItem value="lost">Lost / Missing</SelectItem>
+                  <SelectItem value="good">Baik / Berfungsi</SelectItem>
+                  <SelectItem value="damaged">Rosak / Pecah</SelectItem>
+                  <SelectItem value="lost">Hilang</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {editingUnit && (
               <div className="grid gap-2">
-                <Label>Inventory Status</Label>
+                <Label>Status Inventori</Label>
                 <Select
                   value={unitStatus}
                   onValueChange={(val: any) => setUnitStatus(val)}
@@ -1034,25 +1124,25 @@ export default function AssetManagement() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="maintenance">Under Maintenance</SelectItem>
+                    <SelectItem value="available">Tersedia</SelectItem>
+                    <SelectItem value="maintenance">Dalam Penyelenggaraan</SelectItem>
                   </SelectContent>
                 </Select>
                 {editingUnit.currentStatus === 'borrowed' && (
-                  <p className="text-[10px] text-muted-foreground italic">Unit is currently borrowed.</p>
+                  <p className="text-[10px] text-muted-foreground italic">Unit ini sedang dipinjam.</p>
                 )}
                 {editingUnit.currentStatus === 'assigned' && (
                   <p className="text-[10px] text-muted-foreground italic">Unit ini di bawah Hak Jagaan.</p>
                 )}
               </div>
             )}
-            <div className="grid gap-2"><Label>Notes (Optional)</Label><Textarea value={unitNotes} onChange={(e) => setUnitNotes(e.target.value)} placeholder="Any remarks..." /></div>
+            <div className="grid gap-2"><Label>Catatan (Pilihan)</Label><Textarea value={unitNotes} onChange={(e) => setUnitNotes(e.target.value)} placeholder="Sebarang catatan..." /></div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={resetUnitForm} disabled={isSavingUnit}>Cancel</Button>
+            <Button variant="outline" onClick={resetUnitForm} disabled={isSavingUnit}>Batal</Button>
             <Button onClick={handleSaveUnit} disabled={!unitSerial || isSavingUnit} className="gap-2">
               {isSavingUnit && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSavingUnit ? 'Saving...' : (editingUnit ? 'Update Unit' : 'Add Unit')}
+              {isSavingUnit ? 'Menyimpan...' : (editingUnit ? 'Kemaskini Unit' : 'Tambah Unit')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1161,8 +1251,8 @@ export default function AssetManagement() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={confirmType === 'asset' ? "Delete Asset?" : "Delete Unit?"}
-        description={confirmType === 'asset' ? "This will permanently delete the asset and all its units." : `This will permanently remove unit ${deleteTargetUnit?.assetTag}.`}
+        title={confirmType === 'asset' ? "Padam Aset?" : "Padam Unit?"}
+        description={confirmType === 'asset' ? "Tindakan ini akan memadam aset ini secara kekal berserta semua unit di bawahnya." : `Tindakan ini akan memadam unit ${deleteTargetUnit?.assetTag} secara kekal.`}
         onConfirm={handleConfirmDelete}
       />
     </div>

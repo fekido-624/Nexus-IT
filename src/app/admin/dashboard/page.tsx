@@ -93,14 +93,14 @@ export default function AdminDashboard() {
     const todayStr = new Date().toISOString().split('T')[0];
     const isOverdue = status === 'approved' && returnDate && returnDate < todayStr;
 
-    if (isOverdue) return <Badge variant="destructive" className="animate-pulse">Overdue</Badge>;
+    if (isOverdue) return <Badge variant="destructive" className="animate-pulse">Tertunggak</Badge>;
 
     switch (status) {
-      case 'approved': return <Badge className="bg-green-500">Approved</Badge>;
-      case 'pending': return <Badge className="bg-yellow-500">Pending</Badge>;
-      case 'returning': return <Badge className="bg-orange-400">Returning</Badge>;
-      case 'rejected': return <Badge className="bg-red-500">Rejected</Badge>;
-      case 'returned': return <Badge className="bg-blue-500">Returned</Badge>;
+      case 'approved': return <Badge className="bg-green-500">Diluluskan</Badge>;
+      case 'pending': return <Badge className="bg-yellow-500">Menunggu</Badge>;
+      case 'returning': return <Badge className="bg-orange-400">Dalam Pemulangan</Badge>;
+      case 'rejected': return <Badge className="bg-red-500">Ditolak</Badge>;
+      case 'returned': return <Badge className="bg-blue-500">Dipulangkan</Badge>;
       default: return <Badge variant="secondary">{status}</Badge>;
     }
   };
@@ -108,30 +108,30 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Overview of IT assets, units, and requests.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Papan Pemuka Admin</h1>
+        <p className="text-muted-foreground">Gambaran keseluruhan aset IT, unit, dan permohonan.</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assets</CardTitle>
+            <CardTitle className="text-sm font-medium">Jumlah Aset</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalAssets}</div>
-            <p className="text-xs text-muted-foreground">Categories managed</p>
+            <p className="text-xs text-muted-foreground">Kategori diuruskan</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Currently Borrowed</CardTitle>
+            <CardTitle className="text-sm font-medium">Sedang Dipinjam</CardTitle>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.borrowedUnits}</div>
-            <p className="text-xs text-muted-foreground">In use by staff</p>
+            <p className="text-xs text-muted-foreground">Sedang digunakan staf</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-purple-600">
@@ -146,22 +146,22 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-l-4 border-l-yellow-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Actions</CardTitle>
+            <CardTitle className="text-sm font-medium">Tindakan Tertunggu</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.pendingRequests}</div>
-            <p className="text-xs text-muted-foreground">Requires attention</p>
+            <p className="text-xs text-muted-foreground">Perlu perhatian</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-destructive">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue Returns</CardTitle>
+            <CardTitle className="text-sm font-medium">Pemulangan Tertunggak</CardTitle>
             <CalendarClock className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{stats.overdueCount}</div>
-            <p className="text-xs text-muted-foreground">Passed return date</p>
+            <p className="text-xs text-muted-foreground">Melepasi tarikh pemulangan</p>
           </CardContent>
         </Card>
       </div>
@@ -170,13 +170,13 @@ export default function AdminDashboard() {
         {/* Recent Requests */}
         <Card className="md:col-span-4 shadow-md">
           <CardHeader>
-            <CardTitle>Recent Borrow Requests</CardTitle>
-            <CardDescription>Latest activity from staff.</CardDescription>
+            <CardTitle>Permohonan Pinjaman Terkini</CardTitle>
+            <CardDescription>Aktiviti terbaharu daripada staf.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {recentRequests.length === 0 ? (
-                <p className="text-sm text-center text-muted-foreground py-10">No recent requests.</p>
+                <p className="text-sm text-center text-muted-foreground py-10">Tiada permohonan terkini.</p>
               ) : (
                 recentRequests.map((req) => (
                   <div key={req.requestId} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
@@ -201,14 +201,14 @@ export default function AdminDashboard() {
         {/* Condition Summary */}
         <Card className="md:col-span-3 shadow-md">
           <CardHeader>
-            <CardTitle>Inventory Health</CardTitle>
-            <CardDescription>Status of physical units.</CardDescription>
+            <CardTitle>Kesihatan Inventori</CardTitle>
+            <CardDescription>Status unit fizikal.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4 p-2 rounded-xl transition-colors">
               <div className="bg-green-100 p-2 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Good Condition</p>
+                <p className="text-sm font-medium">Keadaan Baik</p>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-green-500" style={{ width: `${(stats.goodCount / stats.totalUnits) * 100 || 0}%` }}></div>
                 </div>
@@ -216,7 +216,7 @@ export default function AdminDashboard() {
               <p className="text-sm font-bold">{stats.goodCount}</p>
             </div>
 
-            <div 
+            <div
               onClick={() => setIsDialogOpen(true)}
               className="flex items-center gap-4 p-2 rounded-xl cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/20 border border-transparent hover:border-orange-200 transition-all group"
             >
@@ -225,7 +225,7 @@ export default function AdminDashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-orange-600 font-semibold transition-colors flex items-center gap-1">
-                  Damaged / Maintenance 
+                  Rosak / Penyelenggaraan
                   <span className="text-xs font-normal text-muted-foreground group-hover:translate-x-0.5 transition-transform">→</span>
                 </p>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden mt-1">
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-4 p-2 rounded-xl transition-colors">
               <div className="bg-red-100 p-2 rounded-lg"><XCircle className="h-5 w-5 text-red-600" /></div>
               <div className="flex-1">
-                <p className="text-sm font-medium">Lost / Unaccounted</p>
+                <p className="text-sm font-medium">Hilang / Tidak Dikesan</p>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden mt-1">
                   <div className="h-full bg-red-500" style={{ width: `${(stats.lostCount / stats.totalUnits) * 100 || 0}%` }}></div>
                 </div>

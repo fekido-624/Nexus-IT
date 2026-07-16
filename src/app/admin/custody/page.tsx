@@ -140,7 +140,7 @@ export default function CustodyManagement() {
                 <TableHead className="hidden lg:table-cell">Lokasi</TableHead>
                 <TableHead className="hidden md:table-cell">Diserah Oleh</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -30,18 +30,18 @@ export function SidebarNav() {
   if (!user) return null;
 
   const adminLinks = [
-    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/assets', label: 'Asset Management', icon: Package },
-    { href: '/admin/requests', label: 'Borrow Requests', icon: ClipboardList },
+    { href: '/admin/dashboard', label: 'Papan Pemuka', icon: LayoutDashboard },
+    { href: '/admin/assets', label: 'Pengurusan Aset', icon: Package },
+    { href: '/admin/requests', label: 'Permohonan Pinjaman', icon: ClipboardList },
     { href: '/admin/custody', label: 'Hak Jagaan', icon: UserCheck },
-    { href: '/admin/users', label: 'User Management', icon: Users },
-    { href: '/admin/floor-plan', label: 'Floor Plan', icon: MapPin },
+    { href: '/admin/users', label: 'Pengurusan Pengguna', icon: Users },
+    { href: '/admin/floor-plan', label: 'Pelan Lantai', icon: MapPin },
   ];
 
   const userLinks = [
-    { href: '/user/catalogue', label: 'Asset Catalogue', icon: Search },
-    { href: '/user/my-requests', label: 'My Requests', icon: BookOpen },
-    { href: '/user/floor-plan', label: 'Floor Plan', icon: MapPin },
+    { href: '/user/catalogue', label: 'Katalog Aset', icon: Search },
+    { href: '/user/my-requests', label: 'Permohonan Saya', icon: BookOpen },
+    { href: '/user/floor-plan', label: 'Pelan Lantai', icon: MapPin },
   ];
 
   const links = user.role === 'admin' ? adminLinks : userLinks;
@@ -79,7 +79,7 @@ export function SidebarNav() {
 
       <div className="p-4 border-t">
         <div className="bg-muted/50 rounded-xl p-4 mb-4">
-          <p className="text-xs text-muted-foreground font-semibold uppercase">Logged in as</p>
+          <p className="text-xs text-muted-foreground font-semibold uppercase">Log masuk sebagai</p>
           <p className="font-bold text-sm truncate">{user.name}</p>
           <p className="text-xs text-muted-foreground truncate">{user.department}</p>
         </div>
@@ -97,7 +97,7 @@ export function SidebarNav() {
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
-          Logout
+          Log Keluar
         </Button>
       </div>
 

@@ -27,10 +27,10 @@ export default function LoginPage() {
     try {
       const success = await login(email, password);
       if (!success) {
-        setError('Invalid email or password. Please try again.');
+        setError('Emel atau kata laluan tidak sah. Sila cuba lagi.');
       }
     } catch (err) {
-      setError('Login failed. Please check your credentials and try again.');
+      setError('Log masuk gagal. Sila semak kelayakan anda dan cuba lagi.');
     } finally {
       isLoggingInRef.current = false;
       setIsLoggingIn(false);
@@ -47,41 +47,41 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-primary">IT Asset Nexus</CardTitle>
-          <CardDescription>Department Asset Management & Borrowing System</CardDescription>
+          <CardDescription>Sistem Pengurusan & Pinjaman Aset Jabatan</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="email@dept.gov.my" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                required 
+              <Label htmlFor="email">Emel</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="emel@jabatan.gov.my"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
+              <Label htmlFor="password">Kata Laluan</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
             </div>
             {error && <p className="text-sm text-destructive font-medium">{error}</p>}
             <Button type="submit" className="w-full text-lg h-12 gap-2" disabled={isLoggingIn}>
               {isLoggingIn && <Loader2 className="h-5 w-5 animate-spin" />}
-              {isLoggingIn ? 'Logging in...' : 'Login'}
+              {isLoggingIn ? 'Sedang log masuk...' : 'Log Masuk'}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col text-center space-y-2 text-sm text-muted-foreground border-t bg-muted/50 rounded-b-lg">
           <p>Admin: admin@it.gov.my / admin123</p>
-          <p>User: siti@dept.gov.my / user123</p>
+          <p>Staf: siti@dept.gov.my / user123</p>
         </CardFooter>
       </Card>
     </div>

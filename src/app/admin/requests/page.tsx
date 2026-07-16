@@ -19,12 +19,12 @@ import React from 'react';
 
 const DEPARTMENTS = ['IT', 'Kewangan', 'Pentadbiran', 'HR', 'Operasi', 'Pemasaran'];
 const STATUSES = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'returning', label: 'Returning' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'returned', label: 'Returned' },
+  { value: 'all', label: 'Semua Status' },
+  { value: 'pending', label: 'Menunggu' },
+  { value: 'approved', label: 'Diluluskan' },
+  { value: 'returning', label: 'Dalam Pemulangan' },
+  { value: 'rejected', label: 'Ditolak' },
+  { value: 'returned', label: 'Dipulangkan' },
 ];
 
 interface ItemApprovalState {
@@ -101,7 +101,7 @@ export default function BorrowRequests() {
       ]);
       setAllUsers(users); setAllAssets(assets); setRequests(reqs.reverse()); setAllUnitsData(units);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memuatkan data" });
     }
   };
 
@@ -110,7 +110,7 @@ export default function BorrowRequests() {
       const [reqs, units] = await Promise.all([Storage.getRequests(), Storage.getUnits()]);
       setRequests(reqs.reverse()); setAllUnitsData(units);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to load data" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memuatkan data" });
     }
   };
 
@@ -219,12 +219,12 @@ export default function BorrowRequests() {
       await Storage.saveUnits(updatedUnits);
       await Storage.saveAssets(updatedAssets);
 
-      toast({ title: "Request Processed", description: `Request from ${selectedRequest.userName} has been processed.` });
+      toast({ title: "Permohonan Diproses", description: `Permohonan daripada ${selectedRequest.userName} telah diproses.` });
       setIsApproveDialogOpen(false);
       setSelectedRequest(null);
       await loadData();
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to process request" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memproses permohonan" });
     } finally {
       isSubmittingApprovalRef.current = false;
       setIsSubmittingApproval(false);
@@ -238,10 +238,10 @@ export default function BorrowRequests() {
     try {
       const allRequests = await Storage.getRequests();
       await Storage.saveRequests(allRequests.map(r => r.requestId === req.requestId ? { ...r, status: 'rejected' as const, items: r.items.map(i => ({ ...i, status: 'rejected' as const })) } : r));
-      toast({ variant: "destructive", title: "Request Rejected", description: "The borrow request was rejected." });
+      toast({ variant: "destructive", title: "Permohonan Ditolak", description: "Permohonan pinjaman telah ditolak." });
       await loadData();
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to reject request" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menolak permohonan" });
     } finally {
       isRejectingRef.current = false;
       setRejectingRequestId(null);
@@ -282,14 +282,14 @@ export default function BorrowRequests() {
       await Storage.saveUnits(updatedUnits);
       await Storage.saveAssets(updatedAssets);
 
-      toast({ title: "Return Processed", description: `Selected items have been returned successfully.` });
-      
+      toast({ title: "Pemulangan Diproses", description: `Item terpilih telah berjaya dipulangkan.` });
+
       setRequests(newRequestsList.reverse());
       setIsReturnDialogOpen(false);
       setReturnRequest(null);
       setReturnItemIds([]);
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to process return" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal memproses pemulangan" });
     } finally {
       isSubmittingReturnRef.current = false;
       setIsSubmittingReturn(false);
@@ -320,7 +320,7 @@ export default function BorrowRequests() {
     const { userId, purpose, location, borrowDate, returnDate } = manualForm;
 
     if (!userId || !location || !borrowDate || !returnDate || manualItems.length === 0 || !user) {
-      toast({ variant: "destructive", title: "Incomplete Form", description: "Sila isi semua maklumat termasuk tempat digunakan." });
+      toast({ variant: "destructive", title: "Borang Tidak Lengkap", description: "Sila isi semua maklumat termasuk tempat digunakan." });
       return;
     }
 
@@ -367,7 +367,7 @@ export default function BorrowRequests() {
         returnDate, 
         status: 'approved', 
         approvedBy: user.name, 
-        notes: 'Manual assignment by admin',
+        notes: 'Pemberian manual oleh admin',
         items: reqItems
       };
 
@@ -376,9 +376,9 @@ export default function BorrowRequests() {
       await Storage.saveUnits(allUnits);
       await Storage.saveAssets(allAssetsList);
 
-      toast({ title: "Assets Assigned", description: `Successfully assigned ${manualItems.length} unit(s) to ${targetUser.name}.` });
-      
-      setIsManualAssignOpen(false); 
+      toast({ title: "Aset Ditugaskan", description: `Berjaya menugaskan ${manualItems.length} unit kepada ${targetUser.name}.` });
+
+      setIsManualAssignOpen(false);
       setManualForm({ userId: '', purpose: '', location: '', borrowDate: '', returnDate: '' });
       setManualItems([]);
       setManualCategory('');
@@ -386,7 +386,7 @@ export default function BorrowRequests() {
       setUserSearchTerm(''); // Reset carian staf
       await loadData();
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to assign asset" });
+      toast({ variant: "destructive", title: "Ralat", description: "Gagal menugaskan aset" });
     } finally {
       isSubmittingManualRef.current = false;
       setIsSubmittingManual(false);
@@ -412,7 +412,14 @@ export default function BorrowRequests() {
   };
 
   const filteredRequests = requests.filter(req => {
-    const matchesSearch = (req.userName || '').toLowerCase().includes(searchTerm.toLowerCase()) || (req.requestId || '').toLowerCase().includes(searchTerm.toLowerCase()) || req.items.some(i => (i.assetName || '').toLowerCase().includes(searchTerm.toLowerCase()));
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = (req.userName || '').toLowerCase().includes(term)
+      || (req.requestId || '').toLowerCase().includes(term)
+      || req.items.some(i =>
+        (i.assetName || '').toLowerCase().includes(term)
+        || (i.assignedAssetTag || '').toLowerCase().includes(term)
+        || (i.assignedSerialNumber || '').toLowerCase().includes(term)
+      );
     let matchesStatus = statusFilter === 'all' || req.status === statusFilter;
     const matchesDept = deptFilter === 'all' || req.userDept === deptFilter;
     return matchesSearch && matchesStatus && matchesDept;
@@ -421,13 +428,13 @@ export default function BorrowRequests() {
   const getStatusBadge = (status: string, returnDate?: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const isOverdue = status === 'approved' && returnDate && returnDate < todayStr;
-    if (isOverdue) return <Badge variant="destructive" className="animate-pulse">Overdue</Badge>;
+    if (isOverdue) return <Badge variant="destructive" className="animate-pulse">Tertunggak</Badge>;
     switch (status) {
-      case 'approved': return <Badge className="bg-green-500">Approved</Badge>;
-      case 'pending': return <Badge className="bg-yellow-500">Pending</Badge>;
-      case 'returning': return <Badge className="bg-orange-400">Returning</Badge>;
-      case 'rejected': return <Badge className="bg-red-500">Rejected</Badge>;
-      case 'returned': return <Badge className="bg-blue-500">Returned</Badge>;
+      case 'approved': return <Badge className="bg-green-500">Diluluskan</Badge>;
+      case 'pending': return <Badge className="bg-yellow-500">Menunggu</Badge>;
+      case 'returning': return <Badge className="bg-orange-400">Dalam Pemulangan</Badge>;
+      case 'rejected': return <Badge className="bg-red-500">Ditolak</Badge>;
+      case 'returned': return <Badge className="bg-blue-500">Dipulangkan</Badge>;
       default: return <Badge variant="secondary">{status}</Badge>;
     }
   };
@@ -455,8 +462,8 @@ export default function BorrowRequests() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Borrow Requests</h1>
-          <p className="text-sm text-muted-foreground">Manage and approve equipment requests from staff.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary">Permohonan Pinjaman</h1>
+          <p className="text-sm text-muted-foreground">Urus dan luluskan permohonan peralatan daripada staf.</p>
         </div>
         <div className="flex w-full md:w-auto gap-2">
           {selectedRequestIds.length > 0 && (
@@ -466,7 +473,7 @@ export default function BorrowRequests() {
             </Button>
           )}
           <Button className="w-full md:w-auto gap-2" onClick={() => setIsManualAssignOpen(true)}>
-            <UserPlus className="h-4 w-4" /> Manual Assignment
+            <UserPlus className="h-4 w-4" /> Penugasan Manual
           </Button>
         </div>
       </div>
@@ -477,7 +484,7 @@ export default function BorrowRequests() {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search name, asset or ID..." className="pl-9 bg-background" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <Input placeholder="Cari nama, aset, siri atau ID..." className="pl-9 bg-background" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 md:flex gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -485,16 +492,16 @@ export default function BorrowRequests() {
                 <SelectContent>{STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="bg-background min-w-[120px]"><SelectValue placeholder="Dept" /></SelectTrigger>
+                <SelectTrigger className="bg-background min-w-[120px]"><SelectValue placeholder="Jabatan" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Depts</SelectItem>
+                  <SelectItem value="all">Semua Jabatan</SelectItem>
                   {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             {(searchTerm || statusFilter !== 'all' || deptFilter !== 'all') && (
               <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(''); setStatusFilter('all'); setDeptFilter('all'); }} className="h-10 text-muted-foreground">
-                <X className="h-4 w-4 mr-1" /> Clear
+                <X className="h-4 w-4 mr-1" /> Kosongkan
               </Button>
             )}
           </div>
@@ -518,18 +525,18 @@ export default function BorrowRequests() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Requester</TableHead>
-                <TableHead className="hidden md:table-cell">Items</TableHead>
-                <TableHead className="hidden lg:table-cell">Dates</TableHead>
+                <TableHead>Pemohon</TableHead>
+                <TableHead className="hidden md:table-cell">Item</TableHead>
+                <TableHead className="hidden lg:table-cell">Tarikh</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Managed By</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="hidden md:table-cell">Diuruskan Oleh</TableHead>
+                <TableHead className="text-right">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRequests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-40 text-center text-muted-foreground">No requests found.</TableCell>
+                  <TableCell colSpan={7} className="h-40 text-center text-muted-foreground">Tiada permohonan dijumpai.</TableCell>
                 </TableRow>
               ) : (
                 filteredRequests.map((req) => (
@@ -561,14 +568,14 @@ export default function BorrowRequests() {
                             </div>
                           ))}
                           {req.items.length > 2 && (
-                            <span className="text-[10px] text-muted-foreground">+{req.items.length - 2} more</span>
+                            <span className="text-[10px] text-muted-foreground">+{req.items.length - 2} lagi</span>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <div className="text-[10px] md:text-xs">
                           <p>{req.borrowDate}</p>
-                          <p className="text-muted-foreground">to {req.returnDate}</p>
+                          <p className="text-muted-foreground">hingga {req.returnDate}</p>
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(req.status, req.returnDate)}</TableCell>
@@ -579,7 +586,7 @@ export default function BorrowRequests() {
                             <span>{req.approvedBy}</span>
                           </div>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground italic">Pending</span>
+                          <span className="text-[10px] text-muted-foreground italic">Menunggu</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -596,7 +603,7 @@ export default function BorrowRequests() {
                           )}
                           {(req.status === 'returning' || req.status === 'approved') && (
                             <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 h-8 text-[10px] md:text-xs" onClick={() => { setReturnRequest(req); setIsReturnDialogOpen(true); setReturnItemIds([]); }}>
-                              Confirm Return
+                              Sahkan Pemulangan
                             </Button>
                           )}
                           {(req.status === 'approved' || req.status === 'returned') && (
@@ -610,7 +617,7 @@ export default function BorrowRequests() {
                               {printingRequestId === req.requestId ? (
                                 <><Loader2 className="h-3 w-3 animate-spin" /> Menjana...</>
                               ) : (
-                                <><Printer className="h-3 w-3" /> Print</>
+                                <><Printer className="h-3 w-3" /> Cetak</>
                               )}
                             </Button>
                           )}
@@ -624,7 +631,7 @@ export default function BorrowRequests() {
                       <TableRow key={`${req.requestId}-expanded`}>
                         <TableCell colSpan={7} className="bg-muted/20 px-6 py-3">
                           <div className="space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground mb-2">Items in this request:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Item dalam permohonan ini:</p>
                             {req.items.map((item, idx) => (
                               <div key={item.itemId} className="flex items-center gap-3 text-xs">
                                 <span className="text-muted-foreground">{idx + 1}.</span>
@@ -633,7 +640,7 @@ export default function BorrowRequests() {
                                   <span className="font-mono bg-muted px-1 rounded text-[10px]">{item.assignedSerialNumber}</span>
                                 )}
                                 <Badge className={`text-[10px] ${item.status === 'approved' ? 'bg-green-500' : item.status === 'rejected' ? 'bg-red-500' : item.status === 'returned' ? 'bg-blue-500' : 'bg-yellow-500'}`}>
-                                  {item.status}
+                                  {item.status === 'approved' ? 'Diluluskan' : item.status === 'rejected' ? 'Ditolak' : item.status === 'returned' ? 'Dipulangkan' : 'Menunggu'}
                                 </Badge>
                               </div>
                             ))}
@@ -652,10 +659,10 @@ export default function BorrowRequests() {
       {/* Approval Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-2xl rounded-xl">
-          <DialogHeader><DialogTitle>Process Borrow Request</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Proses Permohonan Pinjaman</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-muted/50 p-3 rounded-lg text-sm">
-              <p><strong>Staff:</strong> {selectedRequest?.userName} ({selectedRequest?.userDept})</p>
+              <p><strong>Staf:</strong> {selectedRequest?.userName} ({selectedRequest?.userDept})</p>
               <p><strong>Tempoh:</strong> {selectedRequest?.borrowDate} hingga {selectedRequest?.returnDate}</p>
               <p><strong>Tujuan:</strong> {selectedRequest?.purpose}</p>
             </div>
@@ -687,7 +694,7 @@ export default function BorrowRequests() {
                         <Select value={approval.unitId} onValueChange={(val) => setItemApprovalState(prev => ({ ...prev, [item.itemId]: { ...prev[item.itemId], unitId: val } }))}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pilih unit..." /></SelectTrigger>
                           <SelectContent>
-                            {availableUnits.length === 0 ? <SelectItem value="none" disabled>Tiada unit available</SelectItem> : availableUnits.map(u => {
+                            {availableUnits.length === 0 ? <SelectItem value="none" disabled>Tiada unit tersedia</SelectItem> : availableUnits.map(u => {
                               const alreadyPicked = Object.entries(itemApprovalState).some(([id, val]) => id !== item.itemId && val.unitId === u.unitId);
                               return <SelectItem key={u.unitId} value={u.unitId} disabled={alreadyPicked}>{u.assetTag} {alreadyPicked ? '(Dipilih)' : ''}</SelectItem>;
                             })}
@@ -701,14 +708,14 @@ export default function BorrowRequests() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)} disabled={isSubmittingApproval}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)} disabled={isSubmittingApproval}>Batal</Button>
             <Button
               onClick={handleSubmitApproval}
               disabled={isSubmittingApproval || selectedRequest?.items.some(item => { const approval = itemApprovalState[item.itemId]; return approval?.status === 'approved' && !approval?.unitId; })}
               className="gap-2"
             >
               {isSubmittingApproval && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmittingApproval ? 'Submitting...' : 'Submit'}
+              {isSubmittingApproval ? 'Menghantar...' : 'Hantar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -717,12 +724,12 @@ export default function BorrowRequests() {
       {/* Manual Assignment Dialog (MULTIPLE ASSETS + SEARCH SELECT STAFF) */}
       <Dialog open={isManualAssignOpen} onOpenChange={(open) => { setIsManualAssignOpen(open); if(!open) { setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); } }}>
         <DialogContent className="max-w-[95vw] md:max-w-xl rounded-xl">
-          <DialogHeader><DialogTitle>Direct Assignment</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Penugasan Terus</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2 max-h-[80vh] overflow-y-auto">
-            
+
             {/* 🔥 SEKSYEN BARU: SEARCH SELECT STAFF (KALIS LIST PANJANG) */}
             <div className="grid gap-2 relative">
-              <Label>Select Staff</Label>
+              <Label>Pilih Staf</Label>
               <div className="relative">
                 <Input
                   placeholder="Taip nama atau jabatan staf untuk mencari..."
@@ -788,10 +795,10 @@ export default function BorrowRequests() {
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2"><Label>Borrow Date</Label><Input type="date" value={manualForm.borrowDate} onChange={(e) => setManualForm({...manualForm, borrowDate: e.target.value})} /></div>
-              <div className="grid gap-2"><Label>Return Date</Label><Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} /></div>
+              <div className="grid gap-2"><Label>Tarikh Pinjam</Label><Input type="date" value={manualForm.borrowDate} onChange={(e) => setManualForm({...manualForm, borrowDate: e.target.value})} /></div>
+              <div className="grid gap-2"><Label>Tarikh Pulang</Label><Input type="date" value={manualForm.returnDate} onChange={(e) => setManualForm({...manualForm, returnDate: e.target.value})} /></div>
             </div>
-            <div className="grid gap-2"><Label>Purpose / Notes</Label><Textarea placeholder="Manual assignment details..." value={manualForm.purpose} onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})} /></div>
+            <div className="grid gap-2"><Label>Tujuan / Catatan</Label><Textarea placeholder="Butiran penugasan manual..." value={manualForm.purpose} onChange={(e) => setManualForm({...manualForm, purpose: e.target.value})} /></div>
             <div className="grid gap-2">
               <Label>Tempat Digunakan</Label>
               <Input placeholder="Contoh: Bilik Mesyuarat Utama" value={manualForm.location} onChange={(e) => setManualForm({...manualForm, location: e.target.value})} />
@@ -799,7 +806,7 @@ export default function BorrowRequests() {
 
             {/* SEKSYEN "CART" TAMBAH ITEM MENGIKUT KATEGORI */}
             <div className="border rounded-xl p-4 bg-muted/20 space-y-4">
-              <Label className="text-primary font-bold">Add Equipment to Assign</Label>
+              <Label className="text-primary font-bold">Tambah Peralatan untuk Ditugaskan</Label>
               <div className="flex flex-col md:flex-row gap-3">
                 
                 <div className="flex-1 grid gap-2">
@@ -820,7 +827,7 @@ export default function BorrowRequests() {
                     <SelectTrigger className="bg-background"><SelectValue placeholder="2. Pilih No. Tag / Model..." /></SelectTrigger>
                     <SelectContent>
                       {selectableUnits.length === 0 ? (
-                        <SelectItem value="none" disabled>Tiada unit available</SelectItem>
+                        <SelectItem value="none" disabled>Tiada unit tersedia</SelectItem>
                       ) : (
                         selectableUnits.map(u => (
                           <SelectItem key={u.unitId} value={u.unitId}>
@@ -833,14 +840,14 @@ export default function BorrowRequests() {
                 </div>
                 
                 <Button className="mt-auto gap-2" onClick={handleAddManualItem} disabled={!tempUnitId}>
-                  <Plus className="h-4 w-4" /> Add
+                  <Plus className="h-4 w-4" /> Tambah
                 </Button>
               </div>
 
               {/* Senarai Item Yang Bakal Diberikan */}
               {manualItems.length > 0 && (
                 <div className="space-y-2 mt-4 border-t pt-4">
-                  <Label className="text-xs text-muted-foreground uppercase">Selected Items ({manualItems.length})</Label>
+                  <Label className="text-xs text-muted-foreground uppercase">Item Dipilih ({manualItems.length})</Label>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                     {manualItems.map(item => (
                       <div key={item.unitId} className="flex items-center justify-between bg-background border p-2 rounded-lg">
@@ -865,11 +872,11 @@ export default function BorrowRequests() {
               disabled={isSubmittingManual}
               onClick={() => { setIsManualAssignOpen(false); setManualItems([]); setManualCategory(''); setTempUnitId(''); setUserSearchTerm(''); setIsUserListOpen(false); }}
             >
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleManualAssignSubmit} disabled={!manualForm.userId || manualItems.length === 0 || isSubmittingManual} className="gap-2">
               {isSubmittingManual && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmittingManual ? 'Assigning...' : `Assign ${manualItems.length > 0 ? `${manualItems.length} Asset(s)` : ''}`}
+              {isSubmittingManual ? 'Menugaskan...' : `Tugaskan ${manualItems.length > 0 ? `${manualItems.length} Aset` : ''}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -878,10 +885,10 @@ export default function BorrowRequests() {
       {/* Return Dialog */}
       <Dialog open={isReturnDialogOpen} onOpenChange={setIsReturnDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-md rounded-xl">
-          <DialogHeader><DialogTitle>Confirm Return</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Sahkan Pemulangan</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-muted/50 p-3 rounded-lg text-sm">
-              <p><strong>Staff:</strong> {returnRequest?.userName}</p>
+              <p><strong>Staf:</strong> {returnRequest?.userName}</p>
               <p><strong>Tempoh:</strong> {returnRequest?.borrowDate} — {returnRequest?.returnDate}</p>
             </div>
             <div className="space-y-2">
@@ -903,10 +910,10 @@ export default function BorrowRequests() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsReturnDialogOpen(false)} disabled={isSubmittingReturn}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsReturnDialogOpen(false)} disabled={isSubmittingReturn}>Batal</Button>
             <Button onClick={handleSubmitReturn} disabled={returnItemIds.length === 0 || isSubmittingReturn} className="gap-2">
               {isSubmittingReturn && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmittingReturn ? 'Processing...' : `Confirm Return (${returnItemIds.length} item)`}
+              {isSubmittingReturn ? 'Memproses...' : `Sahkan Pemulangan (${returnItemIds.length} item)`}
             </Button>
           </DialogFooter>
         </DialogContent>
