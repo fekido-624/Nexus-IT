@@ -63,7 +63,9 @@ export function FloorPlanCanvas({
 }: FloorPlanCanvasProps) {
   const isSearching = !!highlightedZoneIds && highlightedZoneIds.length > 0;
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const drawStart = useRef<{ x: number; y: number } | null>(null);
+  const panStart = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
   const [draft, setDraft] = useState<Rect | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [liveZone, setLiveZone] = useState<Rect & { id: string } | null>(null);
@@ -88,11 +90,22 @@ export function FloorPlanCanvas({
   }
 
   function handleContainerPointerDown(e: React.PointerEvent) {
-    if (!editable || !drawingMode) return;
-    if (e.target !== containerRef.current) return; // only start a new zone on empty background
-    const p = pointFromEvent(e);
-    drawStart.current = p;
-    setDraft({ x: p.x, y: p.y, width: 0, height: 0 });
+    if (e.target !== containerRef.current) return; // only act on empty background, not on a zone
+    if (editable && drawingMode) {
+      const p = pointFromEvent(e);
+      drawStart.current = p;
+      setDraft({ x: p.x, y: p.y, width: 0, height: 0 });
+      containerRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+    // Seret latar belakang untuk pan — perlu terutamanya di telefon, sebab canvas
+    // ber-touch-none (elak konflik dgn seret zon) turut sekat skrol native.
+    panStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: scrollRef.current?.scrollLeft ?? 0,
+      scrollTop: scrollRef.current?.scrollTop ?? 0,
+    };
     containerRef.current?.setPointerCapture(e.pointerId);
   }
 
@@ -105,6 +118,11 @@ export function FloorPlanCanvas({
         width: Math.abs(p.x - drawStart.current.x),
         height: Math.abs(p.y - drawStart.current.y),
       });
+      return;
+    }
+    if (panStart.current && scrollRef.current) {
+      scrollRef.current.scrollLeft = panStart.current.scrollLeft - (e.clientX - panStart.current.x);
+      scrollRef.current.scrollTop = panStart.current.scrollTop - (e.clientY - panStart.current.y);
       return;
     }
     if (dragState) {
@@ -139,6 +157,10 @@ export function FloorPlanCanvas({
       if (finalDraft && finalDraft.width >= MIN_SIZE && finalDraft.height >= MIN_SIZE) {
         onZoneCreate?.(finalDraft);
       }
+      return;
+    }
+    if (panStart.current) {
+      panStart.current = null;
       return;
     }
     if (dragState) {
@@ -196,6 +218,7 @@ export function FloorPlanCanvas({
       </div>
 
       <div
+        ref={scrollRef}
         className="w-full overflow-auto rounded-lg border bg-muted"
         style={{ maxHeight: "75vh" }}
         onWheel={handleWheel}
@@ -203,10 +226,7 @@ export function FloorPlanCanvas({
         <div style={{ width: `${zoom * 100}%`, minWidth: "100%" }}>
           <div
             ref={containerRef}
-            className={cn(
-              "relative w-full select-none",
-              editable && "touch-none"
-            )}
+            className="relative w-full select-none touch-none"
             onPointerDown={handleContainerPointerDown}
             onPointerMove={handleContainerPointerMove}
             onPointerUp={handleContainerPointerUp}
