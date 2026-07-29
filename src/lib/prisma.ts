@@ -1,8 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+const globalForPrisma = global as unknown as { prisma?: PrismaClient; prismaPragmaReady?: Promise<unknown> };
 export const prisma = globalForPrisma.prisma ?? new PrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// WAL mode lets reads proceed without blocking writes, and busy_timeout makes SQLite
+// wait for a lock to free up instead of throwing "database is locked" immediately —
+// without this, concurrent saves intermittently fail even though some writes already
+// committed (the request errors client-side but the data shows up after a refresh).
+globalForPrisma.prismaPragmaReady ??= prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;')
+  .then(() => prisma.$queryRawUnsafe('PRAGMA busy_timeout=10000;'))
+  .catch((err) => console.error('Gagal set PRAGMA SQLite:', err));
 
 const DEFAULT_USERS = [
   {
